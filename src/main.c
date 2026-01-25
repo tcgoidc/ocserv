@@ -1194,7 +1194,6 @@ static void listen_watcher_cb(EV_P_ ev_io *w, int revents)
 				close(s->sec_mod_instances[i].sec_mod_fd_sync);
 			}
 
-			setproctitle(PACKAGE "-worker");
 			kill_on_parent_kill(SIGTERM);
 
 			set_self_oom_score_adj(s);

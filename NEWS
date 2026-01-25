@@ -5,6 +5,7 @@
   its purpose (#676). This option defines the duration (in seconds) for which
   an IP address is banned after exceeding the maximum allowed `max-ban-score`.
   Default is 300 seconds (5 minutes).
+- Fixed ocserv-worker process title
 
 
 * Version 1.4.0 (released 2026-01-04)

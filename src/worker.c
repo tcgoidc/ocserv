@@ -65,6 +65,9 @@ int main(int argc, char *argv[])
 	talloc_enable_leak_report_full();
 #endif
 
+	saved_argc = argc;
+	saved_argv = argv;
+
 	if (!getenv(OCSERV_ENV_WORKER_STARTUP_MSG)) {
 		fprintf(stderr,
 			"This application is part of ocserv and should not be run in isolation\n");
