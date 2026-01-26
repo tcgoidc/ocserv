@@ -1,6 +1,7 @@
 * Version 1.4.1 (unreleased)
 - The bundled inih was updated to r62.
 - occtl: Fix column misalignment in ban command outputs
+- occtl: Fix 'show ip bans' may produce invalid JSON (#683)
 - Handle dotted client hostnames (e.g., .local) by stripping the domain suffix
 - Renamed `min-reauth-time` configuration option to `ban-time` to better reflect
   its purpose (#676). This option defines the duration (in seconds) for which
