@@ -231,6 +231,18 @@ static int check_cert_user_group_status(sec_mod_st *sec, client_entry_st *e)
 	unsigned int found, i;
 
 	if (e->auth_type & AUTH_TYPE_CERTIFICATE) {
+		/* Defense in depth: if cert-user-oid is configured, the
+		 * certificate must contain the corresponding identifier.
+		 * The worker already enforces this, but sec-mod is the
+		 * should not rely on the worker having done so. */
+		if (e->vhost->perm_config.config->cert_user_oid != NULL &&
+		    e->cert_user_name[0] == 0) {
+			seclog(sec, LOG_INFO,
+			       "cert-user-oid '%s' configured but no username found in certificate; rejecting",
+			       e->vhost->perm_config.config->cert_user_oid);
+			return -1;
+		}
+
 		if (e->tls_auth_ok == 0) {
 			seclog(sec, LOG_INFO,
 			       "user %s " SESSION_STR
