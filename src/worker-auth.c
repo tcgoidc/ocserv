@@ -518,13 +518,60 @@ int get_auth_handler(worker_st *ws, unsigned int http_ver)
 	return get_auth_handler2(ws, http_ver, NULL, 0);
 }
 
+/* Extract the username from a certificate into ws->cert_username.
+ * Returns 0 on success, a negative GnuTLS error code on failure.
+ * Keeping the return value unambiguous (never a positive SAN-type code)
+ * avoids confusion with gnutls_x509_crt_get_subject_alt_name() which
+ * returns the SAN type (a positive integer) on success. */
+static int get_cert_username(worker_st *ws, gnutls_x509_crt_t crt)
+{
+	char cert_username[MAX_USERNAME_SIZE];
+	size_t size;
+	unsigned int i;
+	int ret;
+
+	if (strcmp(WSCONFIG(ws)->cert_user_oid, "SAN(rfc822name)") == 0) {
+		for (i = 0;; i++) {
+			size = sizeof(cert_username);
+			ret = gnutls_x509_crt_get_subject_alt_name(
+				crt, i, cert_username, &size, NULL);
+			if (ret < 0)
+				return GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE;
+			if (ret == GNUTLS_SAN_RFC822NAME) {
+				strlcpy(ws->cert_username, cert_username,
+					sizeof(ws->cert_username));
+				oclog(ws, LOG_INFO, "RFC822NAME (%s) retrieved",
+				      cert_username);
+				return 0;
+			}
+		}
+	} else if (WSCONFIG(ws)->cert_user_oid) {
+		size = sizeof(cert_username);
+		ret = gnutls_x509_crt_get_dn_by_oid(crt,
+						    WSCONFIG(ws)->cert_user_oid,
+						    0, 0, cert_username, &size);
+		if (ret < 0)
+			return ret;
+		strlcpy(ws->cert_username, cert_username,
+			sizeof(ws->cert_username));
+		return 0;
+	} else {
+		size = sizeof(cert_username);
+		ret = gnutls_x509_crt_get_dn(crt, cert_username, &size);
+		if (ret < 0)
+			return ret;
+		strlcpy(ws->cert_username, cert_username,
+			sizeof(ws->cert_username));
+		return 0;
+	}
+}
+
 int get_cert_names(worker_st *ws, const gnutls_datum_t *raw)
 {
 	gnutls_x509_crt_t crt;
 	int ret;
 	unsigned int i;
 	size_t size;
-	char cert_username[MAX_USERNAME_SIZE];
 
 	if (ws->cert_username[0] != 0 || ws->cert_groups_size > 0)
 		return 0; /* already read, nothing to do */
@@ -543,61 +590,21 @@ int get_cert_names(worker_st *ws, const gnutls_datum_t *raw)
 		goto fail;
 	}
 
-	if (strcmp(WSCONFIG(ws)->cert_user_oid, "SAN(rfc822name)") ==
-	    0) { /* check for RFC822Name */
-		for (i = 0;; i++) {
-			size = sizeof(ws->cert_username);
-			ret = gnutls_x509_crt_get_subject_alt_name(
-				crt, i, cert_username, &size, NULL);
-			if (ret < 0) {
-				if (ret ==
-				    GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE)
-					ret = 1;
-				break;
-			}
-
-			if (ret == GNUTLS_SAN_RFC822NAME) {
-				strlcpy(ws->cert_username, cert_username,
-					sizeof(ws->cert_username));
-				oclog(ws, LOG_INFO, "RFC822NAME (%s) retrieved",
-				      cert_username);
-				break;
-			}
-		}
-
-	} else if (WSCONFIG(ws)
-			   ->cert_user_oid) { /* otherwise we check at the DN */
-		size = sizeof(ws->cert_username);
-		ret = gnutls_x509_crt_get_dn_by_oid(crt,
-						    WSCONFIG(ws)->cert_user_oid,
-						    0, 0, cert_username, &size);
-		if (ret >= 0)
-			strlcpy(ws->cert_username, cert_username,
-				sizeof(ws->cert_username));
-
-	} else {
-		size = sizeof(ws->cert_username);
-		ret = gnutls_x509_crt_get_dn(crt, cert_username, &size);
-		if (ret >= 0)
-			strlcpy(ws->cert_username, cert_username,
-				sizeof(ws->cert_username));
-	}
-
+	ret = get_cert_username(ws, crt);
 	if (ret < 0) {
 		if (ret == GNUTLS_E_SHORT_MEMORY_BUFFER)
 			oclog(ws, LOG_ERR,
-			      "certificate's username exceed the maximum buffer size (%u)",
+			      "certificate's username exceeds the maximum buffer size (%u)",
 			      (unsigned int)sizeof(ws->cert_username));
-		else if (ret == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE) {
+		else if (ret == GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE)
 			oclog(ws, LOG_ERR,
-			      "the certificate's DN does not contain OID %s; cannot determine username",
+			      "the certificate does not contain %s; cannot determine username",
 			      WSCONFIG(ws)->cert_user_oid);
-		} else {
+		else
 			oclog(ws, LOG_ERR,
-			      "cannot obtain user name from certificate DN(%s): %s",
+			      "cannot obtain username from certificate (%s): %s",
 			      WSCONFIG(ws)->cert_user_oid,
 			      gnutls_strerror(ret));
-		}
 		goto fail;
 	}
 
