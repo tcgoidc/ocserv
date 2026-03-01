@@ -11,25 +11,38 @@ protocol between them.
 
 ```mermaid
 flowchart LR
-    ms((main server))
-    wp((worker process))
-    sm((security module))
     user[user]
-    subgraph root privileges
-    ms --> sm
-    sm --> ms
-    end
-    subgraph Non privileged/seccomp isolation
-    ms --> wp
-    wp --> ms
-    wp --> sm
-    sm --> wp
-    end
-    user --> wp
-    wp --> user
-```
 
-See also https://ocserv.openconnect-vpn.net/technical.html
+    subgraph root["root privileges"]
+        subgraph ms_box["main server"]
+            ms((main))
+            ms_tun[TUN device & IP allocation]
+            ms_priv[Execute up/down scripts]
+            ms_tls[Notifies sec-mod of user session start/stop]
+        end
+        subgraph sm_box["security module"]
+            sm((sec-mod))
+            sm_auth[PAM / password auth]
+            sm_key[Private key operations]
+            sm_stats["Session statistics (e.g., Radius)"]
+        end
+    end
+
+    subgraph wp_box["worker (isolated · one per client)"]
+        wp((worker))
+        wp_auth[HTTPS username/password auth]
+        wp_cert[HTTPS certificate auth]
+        wp_cookie[HTTPS cookie auth]
+        wp_tls[TLS / DTLS tunneling]
+    end
+
+    ms <-- "session start/stop" --> sm
+    wp -- "HTTPS cookie auth + TUN req" --> ms
+    ms <-- "TUN/UDP socket, set MTU,<br>TLS resumption data" --> wp
+    wp <-- "privkey sign/decrypt,<br>session stats" --> sm
+    sm <-- "user auth,<br>HTTPS cookie" --> wp
+    wp <--> user
+```
 
 ## The main process
 
