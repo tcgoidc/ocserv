@@ -139,42 +139,42 @@ device and the client. The tasks handled are:
 
 * Authentication
 
-```
-  main                 sec-mod                  worker
-   |                       |                       |
-   |                       | <--SEC_AUTH_INIT----- |
-   |                       | ---SEC_AUTH_REP-----> |
-   |                       | <--SEC_AUTH_CONT----- |
-   |                       |         .             |
-   |                       |         .             |
-   |                       |         .             |
-   |                       | ---SEC_AUTH_REP-----> |
-   |                       |                       |
-   | <----------AUTH_COOKIE_REQ------------------- |
-   |                       |                       |
-   | --SECM_SESSION_OPEN-> |                       |
-   | <-SECM_SESSION_REPLY- |                       |   #contains additional config for client
-   |                       |                       |
-   | ---------------AUTH_COOKIE_REP--------------> |   #forwards the additional config for client
-   |                       |                       |
-   | <------------SESSION_INFO-------------------- |
-   |                       |                       |
-   |                       | <--SEC_CLI_STATS----- |
-   |                       |             (disconnect)
-   | -SECM_SESSION_CLOSE-> |
-   | <---SECM_CLI_STATS--- |
+```mermaid
+sequenceDiagram
+    participant m as main
+    participant sm as sec-mod
+    participant w as worker
 
+    w->>sm: SEC_AUTH_INIT
+    sm->>w: SEC_AUTH_REP
+    w->>sm: SEC_AUTH_CONT
+    Note over sm,w: (authentication rounds...)
+    sm->>w: SEC_AUTH_REP
+
+    w->>m: AUTH_COOKIE_REQ
+    m->>sm: SECM_SESSION_OPEN
+    sm->>m: SECM_SESSION_REPLY
+    Note right of sm: contains additional config for client
+    m->>w: AUTH_COOKIE_REP
+    Note right of m: forwards additional config for client
+    w->>m: SESSION_INFO
+
+    w->>sm: SEC_CLI_STATS
+    Note over w: (disconnect)
+    m->>sm: SECM_SESSION_CLOSE
+    sm->>m: SECM_CLI_STATS
 ```
 
 
 * Auth in main process (cookie auth only)
 
-```
-   main                              worker
-                      <------     AUTH_COOKIE_REQ
- AUTH_REP(OK/FAILED)  ------>
-  +user config
+```mermaid
+sequenceDiagram
+    participant m as main
+    participant w as worker
 
+    w->>m: AUTH_COOKIE_REQ
+    m->>w: AUTH_REP(OK/FAILED) + user config
 ```
 
 
@@ -183,36 +183,32 @@ device and the client. The tasks handled are:
 This is the same diagram as above but shows how the session ID (SID)
 is assigned and used throughout the server.
 
-```
-  main                        sec-mod                        worker
-   |                             |                             |
-   |                             | <--SEC_AUTH_INIT----------- |
-   |                             | --SEC_AUTH_REP (NEW SID)--> |
-   |                             | <--SEC_AUTH_CONT (SID)----- |
-   |                             |         .                   |
-   |                             |         .                   |
-   |                             |         .                   |
-   |                             | -----SEC_AUTH_REP --------> |
+```mermaid
+sequenceDiagram
+    participant m as main
+    participant sm as sec-mod
+    participant w as worker
 
-(note that by that time the client/worker may be disconnected,
-and reconnect later and use the cookie -SID- to resume the
-already authenticated session).
+    w->>sm: SEC_AUTH_INIT
+    sm->>w: SEC_AUTH_REP (new SID)
+    w->>sm: SEC_AUTH_CONT (SID)
+    Note over sm,w: (authentication rounds...)
+    sm->>w: SEC_AUTH_REP
 
-   |                             |                             |
-   | <----------------AUTH_COOKIE_REQ (SID)------------------- |
-   |                             |                             |
-   | --SECM_SESSION_OPEN (SID)-> |                             |
-   | <--SECM_SESSION_REPLY------ |                             |   #contains additional config for client
-   |                             |                             |
-   | -----------------AUTH_COOKIE_REP------------------------> |   #forwards the additional config for client
-   |                             |                             |
-   | <------------------SESSION_INFO-------------------------- |
-   |                             |                             |
-   |                             | <--SEC_CLI_STATS (SID)----- |
-   |                             |            (disconnect)
-   | -SECM_SESSION_CLOSE (SID)-> |
-   | <--SECM_CLI_STATS (SID)---- |
+    Note over m,w: client/worker may disconnect and reconnect,<br>using SID cookie to resume the authenticated session
 
+    w->>m: AUTH_COOKIE_REQ (SID)
+    m->>sm: SECM_SESSION_OPEN (SID)
+    sm->>m: SECM_SESSION_REPLY
+    Note right of sm: contains additional config for client
+    m->>w: AUTH_COOKIE_REP
+    Note right of m: forwards additional config for client
+    w->>m: SESSION_INFO
+
+    w->>sm: SEC_CLI_STATS (SID)
+    Note over w: (disconnect)
+    m->>sm: SECM_SESSION_CLOSE (SID)
+    sm->>m: SECM_CLI_STATS (SID)
 ```
 
 ## Cookies
