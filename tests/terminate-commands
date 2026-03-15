@@ -122,6 +122,12 @@ if test $? != 0;then
 	fail $PID "terminate user failed"
 fi
 
+kill "$(cat ${CLIPID})" 2>/dev/null || true
+rm -f "${CLIPID}"
+sleep 3
+# Restore NS1 routing in case vpnc-script failed to run during server-initiated disconnect
+reset_client_routes
+
 assert_cookie_rejected "${COOKIE_USER}"
 
 # 2) terminate id <id>
@@ -138,6 +144,12 @@ ${OCCTL} -s ${OCCTL_SOCKET} terminate id ${ID}
 if test $? != 0;then
 	fail $PID "terminate id failed"
 fi
+
+kill "$(cat ${CLIPID})" 2>/dev/null || true
+rm -f "${CLIPID}"
+sleep 3
+# Restore NS1 routing in case vpnc-script failed to run during server-initiated disconnect
+reset_client_routes
 
 assert_cookie_rejected "${COOKIE_ID}"
 
@@ -159,6 +171,12 @@ if test $? != 0;then
 	fail $PID "terminate session (short SID) failed"
 fi
 
+kill "$(cat ${CLIPID})" 2>/dev/null || true
+rm -f "${CLIPID}"
+sleep 3
+# Restore NS1 routing in case vpnc-script failed to run during server-initiated disconnect
+reset_client_routes
+
 assert_cookie_rejected "${COOKIE_SESSION}"
 
 # 4) terminate session <full sid> (for scripted use)
@@ -178,6 +196,12 @@ ${OCCTL} -s ${OCCTL_SOCKET} terminate session ${FULL_SID}
 if test $? != 0;then
 	fail $PID "terminate session (full SID) failed"
 fi
+
+kill "$(cat ${CLIPID})" 2>/dev/null || true
+rm -f "${CLIPID}"
+sleep 3
+# Restore NS1 routing in case vpnc-script failed to run during server-initiated disconnect
+reset_client_routes
 
 assert_cookie_rejected "${COOKIE_FULL}"
 

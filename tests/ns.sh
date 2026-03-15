@@ -132,3 +132,11 @@ set +e
 CMDNS1="${IP} netns exec ${NSNAME1}"
 CMDNS2="${IP} netns exec ${NSNAME2}"
 CMDNS3="${IP} netns exec ${NSNAME3}"
+
+# Restore NS1 routing to its original state (default route via CLI_ADDRESS,
+# no vpngateway host route).  Call this after a server-initiated VPN teardown
+# when the client's vpnc-script disconnect handler may not have run.
+reset_client_routes() {
+	${IP} -n "${NSNAME1}" route replace default via "${CLI_ADDRESS}" dev "${ETHNAME1}" 2>/dev/null || true
+	${IP} -n "${NSNAME1}" route del "${ADDRESS}" 2>/dev/null || true
+}
