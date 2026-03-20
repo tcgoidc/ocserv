@@ -265,6 +265,32 @@ noprocfs/Fedora:
     untracked: true
     when: on_failure
 
+noprocfs/distcheck/Fedora:
+  stage: testing
+  image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD
+  script:
+  - chmod -R o-w tests/data/raddb
+  - git submodule update --init
+  - meson setup build -Dnamespaces=disabled
+  - ninja -C build -j$JOBS
+  - meson dist -C build --no-tests
+  - mkdir dist-unpack
+  - tar -xJf build/meson-dist/ocserv-*.tar.xz -C dist-unpack
+  - meson setup dist-unpack/ocserv-* dist-build -Dnamespaces=disabled
+  - ninja -C dist-build -j$JOBS
+  tags:
+  - saas-linux-small-amd64
+  except:
+  - tags
+  - schedules
+  artifacts:
+    expire_in: 1 week
+    when: on_failure
+    paths:
+      - build/meson-logs/
+      - build/meson-dist/
+      - dist-build/meson-logs/
+
 clang/Fedora:
   stage: testing
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$FEDORA_BUILD

@@ -57,13 +57,10 @@ if [ -n "$VERSION" ] && [ -f "$DISTROOT/src/version.inc.in" ]; then
 fi
 
 # --------------------------------------------------------------------------
-# Man pages (ronn is optional)
+# Man pages
 # --------------------------------------------------------------------------
 
-if command -v ronn >/dev/null 2>&1; then
-    for page in ocserv.8 occtl.8 ocpasswd.8; do
-        ronn --roff "$DISTROOT/doc/${page}.md" -o "$DISTROOT/doc"
-    done
-else
-    echo "dist-script: NOTE: ronn not found, man pages not pre-generated in dist" >&2
-fi
+require_cmd ronn
+for page in ocserv.8 occtl.8 ocpasswd.8; do
+    ronn --roff "$DISTROOT/doc/${page}.md" -o "$DISTROOT/doc"
+done
