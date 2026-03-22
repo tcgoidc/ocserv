@@ -275,7 +275,7 @@ if get_option('root-tests')
 
   test('test-script-multi-user', find_program('test-script-multi-user'),
     env:     test_env,
-    timeout: 700,
+    timeout: 300,
     workdir: test_workdir,
   )
 endif
