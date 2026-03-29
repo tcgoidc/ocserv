@@ -102,12 +102,9 @@ Ubuntu22.04:
   - meson setup build -Doidc-auth=enabled -Dlatency-stats=enabled
   - ninja -C build -j$JOBS
   - export MALLOC_CHECK_=3
-  # test-gssapi is expected to fail on Ubuntu22: openssl doesn't support md4
+  # gssapi tests are skipped: openssl on Ubuntu22 doesn't support md4
   # See https://bugs.launchpad.net/ubuntu/+source/gss-ntlmssp/+bug/1995915
-  - |
-    set -o pipefail
-    meson test -C build --num-processes $JOBS --no-rebuild 2>&1 | tee /tmp/test-out.txt || \
-      { ! grep -E "FAIL" /tmp/test-out.txt | grep -qv "test-gssapi"; }
+  - meson test -C build --num-processes $JOBS --no-rebuild --no-suite gssapi
   tags:
   - saas-linux-medium-amd64
   except:

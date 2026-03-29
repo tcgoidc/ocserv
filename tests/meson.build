@@ -101,8 +101,8 @@ if have_cwrap
     'test-cert', 'test-group-pass', 'test-pass-group-cert',
     'test-pass-group-cert-no-pass', 'test-sighup',
     'test-enc-key', 'test-sighup-key-change', 'test-get-cert',
-    'test-san-cert', 'test-gssapi', 'test-pass-opt-cert',
-    'test-cert-opt-pass', 'test-gssapi-opt-pass', 'test-gssapi-opt-cert',
+    'test-san-cert', 'test-pass-opt-cert',
+    'test-cert-opt-pass',
     'haproxy-auth', 'test-maintenance', 'resumption',
     'test-group-name', 'flowcontrol', 'banner', 'invalid-configs',
     'haproxy-proxyproto', 'haproxy-proxyproto-v1',
@@ -120,6 +120,17 @@ if have_cwrap
       env:     test_env,
       timeout: 180,
       workdir: test_workdir,
+    )
+  endforeach
+
+  # gssapi tests are expected to fail on Ubuntu22 (openssl doesn't support md4)
+  # https://bugs.launchpad.net/ubuntu/+source/gss-ntlmssp/+bug/1995915
+  foreach s : ['test-gssapi', 'test-gssapi-opt-pass', 'test-gssapi-opt-cert']
+    test(s, find_program(s),
+      env:     test_env,
+      timeout: 180,
+      workdir: test_workdir,
+      suite:   'gssapi',
     )
   endforeach
 
