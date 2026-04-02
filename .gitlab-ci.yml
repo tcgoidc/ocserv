@@ -22,7 +22,7 @@ variables:
     -Dlz4=disabled -Dgssapi=disabled
     -Danyconnect-compat=disabled -Dcompression=disabled
     -Droot-tests=false
-  JOBS: 4
+  JOBS: 6
 
 Signoff:
   stage: preliminaries
