@@ -270,8 +270,8 @@ typedef struct sec_mod_instance_st {
 } sec_mod_instance_st;
 
 typedef struct if_address_st {
-	struct sockaddr if_addr;
-	struct sockaddr if_netmask;
+	struct sockaddr_storage if_addr;
+	struct sockaddr_storage if_netmask;
 } if_address_st;
 
 typedef struct main_server_st {

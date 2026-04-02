@@ -402,11 +402,17 @@ int if_address_init(main_server_st *s)
 			continue;
 		}
 		family = ifa->ifa_addr->sa_family;
-		if (family == AF_INET || family == AF_INET6) {
+		if (family == AF_INET) {
 			memcpy(&local_if_addresses[count].if_addr,
-			       ifa->ifa_addr, sizeof(struct sockaddr));
+			       ifa->ifa_addr, sizeof(struct sockaddr_in));
 			memcpy(&local_if_addresses[count].if_netmask,
-			       ifa->ifa_netmask, sizeof(struct sockaddr));
+			       ifa->ifa_netmask, sizeof(struct sockaddr_in));
+			count++;
+		} else if (family == AF_INET6) {
+			memcpy(&local_if_addresses[count].if_addr,
+			       ifa->ifa_addr, sizeof(struct sockaddr_in6));
+			memcpy(&local_if_addresses[count].if_netmask,
+			       ifa->ifa_netmask, sizeof(struct sockaddr_in6));
 			count++;
 		}
 	}
@@ -466,7 +472,7 @@ static bool if_address_test_local(main_server_st *s,
 	for (index = 0; index < s->if_addresses_count; index++) {
 		if_address_st *ifa = &s->if_addresses[index];
 
-		if (ifa->if_addr.sa_family != addr->ss_family)
+		if (ifa->if_addr.ss_family != addr->ss_family)
 			continue;
 
 		switch (addr->ss_family) {
