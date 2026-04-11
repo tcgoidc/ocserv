@@ -440,7 +440,7 @@ int parse_proxy_proto_header(struct worker_st *ws, int fd)
 		sa = (void *)&ws->our_addr;
 		memcpy(&sa->sin6_addr, p + 16, 16);
 		memcpy(&sa->sin6_port, p + 34, 2);
-		ws->our_addr_len = sizeof(struct sockaddr_in);
+		ws->our_addr_len = sizeof(struct sockaddr_in6);
 
 		p += 36;
 		data_size -= 36;
