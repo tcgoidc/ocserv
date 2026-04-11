@@ -923,7 +923,7 @@ int recv_auth_reply(worker_st *ws, int sd, char **txt, unsigned int *pcounter)
 		memcpy(ws->session_id, msg->dtls_session_id.data,
 		       msg->dtls_session_id.len);
 
-		if (txt)
+		if (txt && msg->msg)
 			*txt = talloc_strdup(ws, msg->msg);
 
 		break;
