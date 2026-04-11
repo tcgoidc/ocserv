@@ -80,8 +80,8 @@ static void parse_ssl_tlvs(struct worker_st *ws, uint8_t *data,
 		AVAIL_HEADER_SIZE(data_size, sizeof(pp2_tlv));
 		memcpy(&tlv, data, sizeof(pp2_tlv));
 
-		/* that seems to be in little endian */
-		tlv.length = htons(tlv.length);
+		/* TLV length is in network (big-endian) byte order */
+		tlv.length = ntohs(tlv.length);
 
 		data += sizeof(pp2_tlv);
 
@@ -109,24 +109,50 @@ static void parse_ssl_tlvs(struct worker_st *ws, uint8_t *data,
 				      "proxy-hdr: user has presented valid certificate");
 				ws->cert_auth_ok = 1;
 			}
-			data += orig_len;
-		} else if (tlv.type == PP2_TYPE_SSL_CN && ws->cert_auth_ok) {
-			if (tlv.length > sizeof(ws->cert_username) - 1) {
-				oclog(ws, LOG_ERR,
-				      "proxy-hdr: TLV SSL CN header size is too long");
-				AVAIL_HEADER_SIZE(data_size, tlv.length);
-				data += tlv.length;
-				continue;
+
+			/* Per spec §2.2.6, PP2_TYPE_SSL_CN is a sub-TLV
+			 * inside the SSL body, not a separate top-level TLV.
+			 * Scan the bytes after the fixed pp2_tlv_ssl header. */
+			if (ws->cert_auth_ok &&
+			    orig_len > sizeof(pp2_tlv_ssl)) {
+				uint8_t *sub = data + sizeof(pp2_tlv_ssl);
+				uint16_t sub_left =
+					orig_len - sizeof(pp2_tlv_ssl);
+
+				while (sub_left >= sizeof(pp2_tlv)) {
+					pp2_tlv stlv;
+					memcpy(&stlv, sub, sizeof(pp2_tlv));
+					stlv.length = ntohs(stlv.length);
+					sub += sizeof(pp2_tlv);
+					sub_left -= sizeof(pp2_tlv);
+
+					if (stlv.length > sub_left)
+						break;
+
+					if (stlv.type == PP2_TYPE_SSL_CN) {
+						if (stlv.length <=
+						    sizeof(ws->cert_username) -
+							    1) {
+							memcpy(ws->cert_username,
+							       sub,
+							       stlv.length);
+							ws->cert_username
+								[stlv.length] =
+								0;
+							oclog(ws, LOG_INFO,
+							      "proxy-hdr: user's name is '%s'",
+							      ws->cert_username);
+						} else {
+							oclog(ws, LOG_ERR,
+							      "proxy-hdr: TLV SSL CN too long");
+						}
+						break;
+					}
+					sub += stlv.length;
+					sub_left -= stlv.length;
+				}
 			}
-
-			AVAIL_HEADER_SIZE(data_size, tlv.length);
-
-			memcpy(ws->cert_username, data, tlv.length);
-			ws->cert_username[tlv.length] = 0;
-
-			oclog(ws, LOG_INFO, "proxy-hdr: user's name is '%s'",
-			      ws->cert_username);
-			data += tlv.length;
+			data += orig_len;
 		} else {
 			AVAIL_HEADER_SIZE(data_size, tlv.length);
 			data += tlv.length;
