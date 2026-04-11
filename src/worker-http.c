@@ -308,7 +308,7 @@ static void header_value_check(struct worker_st *ws, struct http_req_st *req)
 	int want_cipher;
 	int want_mac;
 
-	if (req->value.length <= 0)
+	if (req->value.length == 0)
 		return;
 
 	if (WSPCONFIG(ws)->log_level < OCLOG_SENSITIVE &&
