@@ -89,14 +89,16 @@ static void parse_ssl_tlvs(struct worker_st *ws, uint8_t *data,
 		      (unsigned int)tlv.type);
 		if (tlv.type == PP2_TYPE_SSL) {
 			pp2_tlv_ssl tssl;
+			uint16_t orig_len = tlv.length;
 
 			if (tlv.length < sizeof(pp2_tlv_ssl)) {
 				oclog(ws, LOG_ERR,
 				      "proxy-hdr: TLV SSL header size is invalid");
+				AVAIL_HEADER_SIZE(data_size, orig_len);
+				data += orig_len;
 				continue;
 			}
-			tlv.length = sizeof(pp2_tlv_ssl);
-			AVAIL_HEADER_SIZE(data_size, tlv.length);
+			AVAIL_HEADER_SIZE(data_size, orig_len);
 
 			memcpy(&tssl, data, sizeof(pp2_tlv_ssl));
 
@@ -107,10 +109,13 @@ static void parse_ssl_tlvs(struct worker_st *ws, uint8_t *data,
 				      "proxy-hdr: user has presented valid certificate");
 				ws->cert_auth_ok = 1;
 			}
+			data += orig_len;
 		} else if (tlv.type == PP2_TYPE_SSL_CN && ws->cert_auth_ok) {
 			if (tlv.length > sizeof(ws->cert_username) - 1) {
 				oclog(ws, LOG_ERR,
 				      "proxy-hdr: TLV SSL CN header size is too long");
+				AVAIL_HEADER_SIZE(data_size, tlv.length);
+				data += tlv.length;
 				continue;
 			}
 
@@ -121,11 +126,11 @@ static void parse_ssl_tlvs(struct worker_st *ws, uint8_t *data,
 
 			oclog(ws, LOG_INFO, "proxy-hdr: user's name is '%s'",
 			      ws->cert_username);
+			data += tlv.length;
 		} else {
 			AVAIL_HEADER_SIZE(data_size, tlv.length);
+			data += tlv.length;
 		}
-
-		data += tlv.length;
 	}
 }
 
