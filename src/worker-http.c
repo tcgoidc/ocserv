@@ -41,6 +41,11 @@
 #define CS_AES128_GCM "OC-DTLS1_2-AES128-GCM"
 #define CS_AES256_GCM "OC-DTLS1_2-AES256-GCM"
 
+/* Maximum accumulated HTTP request body size. Sized to comfortably cover the
+ * largest legitimate payload (KKDCP Kerberos messages, ~64 KB encoded) while
+ * preventing unauthenticated clients from exhausting worker memory. */
+#define MAX_HTTP_REQUEST_BODY (256 * 1024)
+
 struct known_urls_st {
 	const char *url;
 	unsigned int url_size;
@@ -900,6 +905,14 @@ int http_body_cb(llhttp_t *parser, const char *at, size_t length)
 	struct worker_st *ws = parser->data;
 	struct http_req_st *req = &ws->req;
 	char *tmp;
+
+	if (length > MAX_HTTP_REQUEST_BODY ||
+	    req->body_length > MAX_HTTP_REQUEST_BODY - length) {
+		oclog(ws, LOG_HTTP_DEBUG,
+		      "HTTP body length limit exceeded (%u+%zu > %u)",
+		      req->body_length, length, MAX_HTTP_REQUEST_BODY);
+		return 1;
+	}
 
 	tmp = talloc_realloc_size(ws, req->body, req->body_length + length + 1);
 	if (tmp == NULL)
