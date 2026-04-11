@@ -818,8 +818,10 @@ static int recv_cookie_auth_reply(worker_st *ws)
 	ret = 0;
 cleanup:
 	if (ret < 0) {
-		/* we only release on error, as the user configuration
-		 * remains. */
+		/* msg is intentionally kept alive on success: ws->user_config
+		 * borrows a pointer into the unpacked protobuf message and must
+		 * remain valid for the lifetime of the worker session.  Only
+		 * free msg (and clear user_config) on the error path. */
 		auth_cookie_reply_msg__free_unpacked(msg, &pa);
 		ws->user_config = NULL;
 	}
