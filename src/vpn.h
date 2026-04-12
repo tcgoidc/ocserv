@@ -103,7 +103,8 @@ inline static const char *proto_to_str(fw_proto_t proto)
 /* The time after a disconnection the cookie is valid */
 #define DEFAULT_COOKIE_RECON_TIMEOUT 120
 
-#define DEFAULT_DPD_TIME 600
+#define DEFAULT_DPD_TIME 90
+#define DEFAULT_MOBILE_DPD_TIME 1800
 
 #define AC_PKT_DATA 0 /* Uncompressed data */
 #define AC_PKT_DPD_OUT 3 /* Dead Peer Detection */

@@ -669,7 +669,7 @@ static void apply_default_conf(vhost_cfg_st *vhost, unsigned int reload)
 	vhost->perm_config.config->predictable_ips = 1;
 	vhost->perm_config.config->use_utmp = 1;
 	vhost->perm_config.config->keepalive = 3600;
-	vhost->perm_config.config->dpd = 60;
+	vhost->perm_config.config->mobile_dpd = DEFAULT_MOBILE_DPD_TIME;
 }
 
 static void cfg_new(struct vhost_cfg_st *vhost, unsigned int reload)
