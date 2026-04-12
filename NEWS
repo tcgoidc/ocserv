@@ -1,4 +1,10 @@
 * Version 1.4.2 (unreleased)
+- Added VIRTUAL HOSTS and CONFIGURATION sections to ocserv(8) man page;
+  documented options scope.
+- Setting a global-only option inside a [vhost:] section is now a hard
+  configuration error (previously it was ignored). Options are
+  annotated with their scope in doc/sample.config; see ocserv(8) for a
+  description of the configuration scope.
 - radius: added group-separator option to auth configuration, allowing
   the separator used in OU= Class attributes to be set to 'semicolon'
   (default) or 'comma', to support Freeradius deployments (#428)
@@ -9,8 +15,6 @@
 - Replaced autoconf/automake build system with meson (#699)
 - Added nftables-based ocserv-fw; requires ipcalc-ng/ipcalc (#397)
 - No longer need to duplicate global options in virtual hosts (#698)
-- Added VIRTUAL HOSTS section to ocserv(8) man page; documented global options
-  that cannot be overridden at vhost level
 - Fixed a bug where a correct password was rejected after a wrong password
   attempt in the same session (#323)
 - Aligned the default values for 'dpd' and 'mobile-dpd' options with

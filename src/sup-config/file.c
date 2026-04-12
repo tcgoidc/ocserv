@@ -113,7 +113,7 @@ static int group_cfg_ini_handler(void *_ctx, const char *section,
 	} else if (strcmp(name, "restrict-user-to-routes") == 0) {
 		READ_TF(msg->config->restrict_user_to_routes,
 			msg->config->has_restrict_user_to_routes);
-	} else if (strcmp(name, "tunnel_all_dns") == 0) {
+	} else if (strcmp(name, "tunnel-all-dns") == 0) {
 		READ_TF(msg->config->tunnel_all_dns,
 			msg->config->has_tunnel_all_dns);
 	} else if (strcmp(name, "deny-roaming") == 0) {

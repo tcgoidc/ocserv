@@ -213,212 +213,231 @@ typedef struct kkdcp_st {
 	unsigned int realms_size;
 } kkdcp_st;
 
+/*
+ * Scope tags for config options:
+ *   [scope: global]         -- reloadable; error if set in a [vhost:X] section
+ *   [scope: vhost]          -- reloadable; can differ per virtual host
+ *   [scope: vhost user]    -- reloadable; settable per-vhost and overridable per-user/group
+ * Options in perm_cfg_st are permanent (require restart); see tags there.
+ */
 struct cfg_st {
-	unsigned int is_dyndns;
-	unsigned int listen_proxy_proto;
-	unsigned int stats_report_time;
+	unsigned int is_dyndns; /* [scope: vhost] */
+	unsigned int listen_proxy_proto; /* [scope: global] */
+	unsigned int stats_report_time; /* [scope: vhost user] */
 
-	kkdcp_st *kkdcp;
-	unsigned int kkdcp_size;
+	kkdcp_st *kkdcp; /* [scope: vhost] */
+	unsigned int kkdcp_size; /* [scope: vhost] */
 
-	char *cert_user_oid; /* The OID that will be used to extract the username */
-	char *cert_group_oid; /* The OID that will be used to extract the groupname */
+	char *cert_user_oid; /* [scope: vhost] The OID that will be used to extract the username */
+	char *cert_group_oid; /* [scope: vhost] The OID that will be used to extract the groupname */
 
-	gnutls_certificate_request_t cert_req;
-	char *priorities;
+	gnutls_certificate_request_t cert_req; /* [scope: vhost] */
+	char *priorities; /* [scope: vhost] */
 #ifdef ENABLE_COMPRESSION
-	unsigned int enable_compression;
+	unsigned int enable_compression; /* [scope: vhost] */
 	unsigned int
-		no_compress_limit; /* under this size (in bytes) of data there will be no compression */
+		no_compress_limit; /* [scope: vhost] under this size (in bytes) of data there will be no compression */
 #endif
-	char *banner;
-	char *pre_login_banner;
-	char *ocsp_response; /* file with the OCSP response */
-	char *default_domain; /* domain to be advertised */
+	char *banner; /* [scope: vhost] */
+	char *pre_login_banner; /* [scope: vhost] */
+	char *ocsp_response; /* [scope: vhost] file with the OCSP response */
+	char *default_domain; /* [scope: vhost] domain to be advertised */
 
-	char **group_list; /* select_group */
-	unsigned int group_list_size;
+	char **group_list; /* [scope: vhost] select_group */
+	unsigned int group_list_size; /* [scope: vhost] */
 
-	char **friendly_group_list; /* the same size as group_list_size */
+	char **friendly_group_list; /* [scope: vhost] the same size as group_list_size */
 
-	unsigned int select_group_by_url;
-	unsigned int auto_select_group;
-	char *default_select_group;
+	unsigned int select_group_by_url; /* [scope: vhost] */
+	unsigned int auto_select_group; /* [scope: vhost] */
+	char *default_select_group; /* [scope: vhost] */
 
-	char **custom_header;
-	size_t custom_header_size;
+	char **custom_header; /* [scope: vhost] */
+	size_t custom_header_size; /* [scope: vhost] */
 
-	char **split_dns;
-	size_t split_dns_size;
+	char **split_dns; /* [scope: vhost user] */
+	size_t split_dns_size; /* [scope: vhost user] */
 
 	/* http headers to include */
-	char **included_http_headers;
-	size_t included_http_headers_size;
+	char **included_http_headers; /* [scope: vhost] */
+	size_t included_http_headers_size; /* [scope: vhost] */
 
 	unsigned int
-		append_routes; /* whether to append global routes to per-user config */
+		append_routes; /* [scope: vhost] whether to append global routes to per-user config */
 	unsigned int
-		restrict_user_to_routes; /* whether the firewall script will be run for the user */
+		restrict_user_to_routes; /* [scope: vhost user] whether the firewall script will be run for the user */
 	unsigned int
-		deny_roaming; /* whether a cookie is restricted to a single IP */
-	time_t cookie_timeout; /* in seconds */
-	time_t session_timeout; /* in seconds */
+		deny_roaming; /* [scope: vhost user] whether a cookie is restricted to a single IP */
+	time_t cookie_timeout; /* [scope: vhost] in seconds */
+	time_t session_timeout; /* [scope: vhost user] in seconds */
 	unsigned int
-		persistent_cookies; /* whether cookies stay valid after disconnect */
+		persistent_cookies; /* [scope: vhost] whether cookies stay valid after disconnect */
 
-	time_t rekey_time; /* in seconds */
-	unsigned int rekey_method; /* REKEY_METHOD_ */
+	time_t rekey_time; /* [scope: vhost] in seconds */
+	unsigned int rekey_method; /* [scope: vhost] REKEY_METHOD_ */
 
-	time_t ban_time; /* duration IP remains banned after hitting max_ban_score -> in seconds */
+	time_t ban_time; /* [scope: global] duration IP remains banned after hitting max_ban_score -> in seconds */
 	unsigned int
-		max_ban_score; /* the score allowed before a user is banned (see vpn.h) */
-	int ban_reset_time;
+		max_ban_score; /* [scope: global] the score allowed before a user is banned (see vpn.h) */
+	int ban_reset_time; /* [scope: global] */
 
-	unsigned int ban_points_wrong_password;
-	unsigned int ban_points_connect;
-	unsigned int ban_points_kkdcp;
+	unsigned int ban_points_wrong_password; /* [scope: global] */
+	unsigned int ban_points_connect; /* [scope: global] */
+	unsigned int ban_points_kkdcp; /* [scope: global] */
 
 	/* when using the new PSK DTLS negotiation make sure that
 	 * the negotiated DTLS cipher/mac matches the TLS cipher/mac. */
-	unsigned int match_dtls_and_tls;
-	unsigned int dtls_psk; /* whether to enable DTLS-PSK */
-	unsigned int dtls_legacy; /* whether to enable DTLS-LEGACY */
-
-	unsigned int isolate; /* whether seccomp should be enabled or not */
-
-	unsigned int auth_timeout; /* timeout of HTTP auth */
-	unsigned int idle_timeout; /* timeout when idle */
-	unsigned int mobile_idle_timeout; /* timeout when a mobile is idle */
+	unsigned int match_dtls_and_tls; /* [scope: vhost] */
+	unsigned int dtls_psk; /* [scope: global] whether to enable DTLS-PSK */
 	unsigned int
-		switch_to_tcp_timeout; /* length of no traffic period to automatically switch to TCP */
-	unsigned int keepalive;
-	unsigned int dpd;
-	unsigned int mobile_dpd;
-	unsigned int max_clients;
-	unsigned int max_same_clients;
-	unsigned int use_utmp;
-	unsigned int tunnel_all_dns;
-	unsigned int
-		use_occtl; /* whether support for the occtl tool will be enabled */
+		dtls_legacy; /* [scope: vhost] whether to enable DTLS-LEGACY */
 
-	unsigned int try_mtu; /* MTU discovery enabled */
-	unsigned int cisco_client_compat; /* do not require client certificate,
+	unsigned int
+		isolate; /* [scope: global] whether seccomp should be enabled or not */
+
+	unsigned int auth_timeout; /* [scope: global] timeout of HTTP auth */
+	unsigned int idle_timeout; /* [scope: vhost user] timeout when idle */
+	unsigned int
+		mobile_idle_timeout; /* [scope: vhost user] timeout when a mobile is idle */
+	unsigned int
+		switch_to_tcp_timeout; /* [scope: vhost] length of no traffic period to automatically switch to TCP */
+	unsigned int keepalive; /* [scope: vhost user] */
+	unsigned int dpd; /* [scope: vhost user] */
+	unsigned int mobile_dpd; /* [scope: vhost user] */
+	unsigned int max_clients; /* [scope: global] */
+	unsigned int max_same_clients; /* [scope: vhost user] */
+	unsigned int use_utmp; /* [scope: global] */
+	unsigned int tunnel_all_dns; /* [scope: vhost user] */
+	unsigned int
+		use_occtl; /* [scope: global] whether support for the occtl tool will be enabled */
+
+	unsigned int try_mtu; /* [scope: global] MTU discovery enabled */
+	unsigned int
+		cisco_client_compat; /* [scope: vhost] do not require client certificate,
 				       * and allow auth to complete in different
 				       * TCP sessions. */
 	unsigned int
-		cisco_svc_client_compat; /* force allowed ciphers and disable dtls-legacy */
+		cisco_svc_client_compat; /* [scope: vhost] force allowed ciphers and disable dtls-legacy */
 	unsigned int
-		rate_limit_ms; /* if non zero force a connection every rate_limit milliseconds if ocserv-sm is heavily loaded */
+		rate_limit_ms; /* [scope: global] if non zero force a connection every rate_limit milliseconds if ocserv-sm is heavily loaded */
 	unsigned int
-		ping_leases; /* non zero if we need to ping prior to leasing */
+		ping_leases; /* [scope: global] non zero if we need to ping prior to leasing */
 	unsigned int
-		server_drain_ms; /* how long to wait after we stop accepting new connections before closing old connections */
+		server_drain_ms; /* [scope: global] how long to wait after we stop accepting new connections before closing old connections */
 
-	size_t rx_per_sec;
-	size_t tx_per_sec;
-	unsigned int net_priority;
+	size_t rx_per_sec; /* [scope: vhost user] */
+	size_t tx_per_sec; /* [scope: vhost user] */
+	unsigned int net_priority; /* [scope: vhost user] */
 
-	char *crl;
+	char *crl; /* [scope: vhost] */
 
-	unsigned int output_buffer;
-	unsigned int default_mtu;
-	unsigned int predictable_ips; /* boolean */
+	unsigned int output_buffer; /* [scope: vhost] */
+	unsigned int default_mtu; /* [scope: vhost user] */
+	unsigned int predictable_ips; /* [scope: vhost] boolean */
 
-	char *route_add_cmd;
-	char *route_del_cmd;
+	char *route_add_cmd; /* [scope: global] */
+	char *route_del_cmd; /* [scope: global] */
 
-	char *connect_script;
-	char *host_update_script;
-	char *disconnect_script;
+	char *connect_script; /* [scope: global] */
+	char *host_update_script; /* [scope: global] */
+	char *disconnect_script; /* [scope: global] */
 
-	char *cgroup;
-	char *proxy_url;
+	char *cgroup; /* [scope: vhost user] */
+	char *proxy_url; /* [scope: vhost] */
 
 #ifdef ANYCONNECT_CLIENT_COMPAT
-	char *xml_config_file;
-	char *xml_config_hash;
+	char *xml_config_file; /* [scope: vhost user] */
+	char *xml_config_hash; /* [scope: vhost user] */
 #endif
 
-	unsigned int client_bypass_protocol;
+	unsigned int client_bypass_protocol; /* [scope: vhost user] */
 
 	/* additional configuration files */
-	char *per_group_dir;
-	char *per_user_dir;
-	char *default_group_conf;
-	char *default_user_conf;
+	char *per_group_dir; /* [scope: vhost] */
+	char *per_user_dir; /* [scope: vhost] */
+	char *default_group_conf; /* [scope: vhost] */
+	char *default_user_conf; /* [scope: vhost] */
 
-	bool gssapi_no_local_user_map;
+	bool gssapi_no_local_user_map; /* [scope: vhost] */
 
-	/* known iroutes - only sent to the users who are not registering them
-	 */
-	char **known_iroutes;
-	size_t known_iroutes_size;
+	/* known iroutes - only sent to the users who are not registering them */
+	char **known_iroutes; /* [scope: vhost] */
+	size_t known_iroutes_size; /* [scope: vhost] */
 
-	FwPortSt **fw_ports;
-	size_t n_fw_ports;
+	FwPortSt **fw_ports; /* [scope: vhost user] */
+	size_t n_fw_ports; /* [scope: vhost user] */
 
 	/* the tun network */
-	struct vpn_st network;
+	struct vpn_st
+		network; /* [scope: vhost user] dns/routes/network sub-fields */
 
 	/* holds a usage count of holders of pointers in this struct */
-	int *usage_count;
+	int *usage_count; /* [scope: vhost] */
 
-	bool camouflage;
-	char *camouflage_secret;
-	char *camouflage_realm;
+	bool camouflage; /* [scope: vhost] */
+	char *camouflage_secret; /* [scope: vhost] */
+	char *camouflage_realm; /* [scope: vhost] */
 };
 
+/*
+ * Permanent config (perm_cfg_st): requires server restart to change.
+ * Scope tags:
+ *   [scope: global (non-reloadable)] -- cannot differ per virtual host
+ *   [scope: vhost (non-reloadable)]  -- can differ per virtual host
+ */
 struct perm_cfg_st {
 	/* gets reloaded */
 	struct cfg_st *config;
 
 	/* stuff here don't change on reload */
-	auth_struct_st auth[MAX_AUTH_METHODS];
-	unsigned int auth_methods;
-	acct_struct_st acct;
-	unsigned int sup_config_type; /* one of SUP_CONFIG_ */
+	auth_struct_st
+		auth[MAX_AUTH_METHODS]; /* [scope: vhost (non-reloadable)] */
+	unsigned int auth_methods; /* [scope: vhost (non-reloadable)] */
+	acct_struct_st acct; /* [scope: vhost (non-reloadable)] */
+	unsigned int
+		sup_config_type; /* [scope: vhost (non-reloadable)] one of SUP_CONFIG_ */
 
-	char *chroot_dir; /* where the xml files are served from */
-	char *occtl_socket_file;
-	char *socket_file_prefix;
+	char *chroot_dir; /* [scope: global (non-reloadable)] where the xml files are served from */
+	char *occtl_socket_file; /* [scope: global (non-reloadable)] */
+	char *socket_file_prefix; /* [scope: global (non-reloadable)] */
 
-	uid_t uid;
-	gid_t gid;
+	uid_t uid; /* [scope: global (non-reloadable)] */
+	gid_t gid; /* [scope: global (non-reloadable)] */
 
-	char *key_pin;
-	char *srk_pin;
+	char *key_pin; /* [scope: vhost (non-reloadable)] */
+	char *srk_pin; /* [scope: vhost (non-reloadable)] */
 
-	char *pin_file;
-	char *srk_pin_file;
-	char **cert;
-	size_t cert_size;
-	char **key;
-	size_t key_size;
+	char *pin_file; /* [scope: vhost (non-reloadable)] */
+	char *srk_pin_file; /* [scope: vhost (non-reloadable)] */
+	char **cert; /* [scope: vhost (non-reloadable)] */
+	size_t cert_size; /* [scope: vhost (non-reloadable)] */
+	char **key; /* [scope: vhost (non-reloadable)] */
+	size_t key_size; /* [scope: vhost (non-reloadable)] */
 #ifdef ANYCONNECT_CLIENT_COMPAT
-	char *cert_hash;
+	char *cert_hash; /* [scope: vhost (non-reloadable)] */
 #endif
-	unsigned int stats_reset_time;
-	unsigned int foreground;
-	unsigned int no_chdir;
-	unsigned int log_level;
-	unsigned int log_stderr;
-	unsigned int syslog;
+	unsigned int stats_reset_time; /* [scope: global (non-reloadable)] */
+	unsigned int foreground; /* [scope: global (non-reloadable)] */
+	unsigned int no_chdir; /* [scope: global (non-reloadable)] */
+	unsigned int log_level; /* [scope: global (non-reloadable)] */
+	unsigned int log_stderr; /* [scope: global (non-reloadable)] */
+	unsigned int syslog; /* [scope: global (non-reloadable)] */
 
-	unsigned int pr_dumpable;
+	unsigned int pr_dumpable; /* [scope: global (non-reloadable)] */
 
-	char *ca;
-	char *dh_params_file;
+	char *ca; /* [scope: vhost (non-reloadable)] */
+	char *dh_params_file; /* [scope: vhost (non-reloadable)] */
 
-	char *listen_host;
-	char *udp_listen_host;
-	char *listen_netns_name;
-	unsigned int port;
-	unsigned int udp_port;
+	char *listen_host; /* [scope: global (non-reloadable)] */
+	char *udp_listen_host; /* [scope: global (non-reloadable)] */
+	char *listen_netns_name; /* [scope: global (non-reloadable)] */
+	unsigned int port; /* [scope: global (non-reloadable)] */
+	unsigned int udp_port; /* [scope: global (non-reloadable)] */
 
-	unsigned int sec_mod_scale;
+	unsigned int sec_mod_scale; /* [scope: global (non-reloadable)] */
 
 	/* for testing ocserv only */
-	unsigned int debug_no_secmod_stats;
+	unsigned int debug_no_secmod_stats; /* [scope: global (non-reloadable)] */
 
 	/* attic, where old config allocated values are stored */
 	struct list_head attic;

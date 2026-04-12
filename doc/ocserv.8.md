@@ -80,6 +80,65 @@ server.
     Output version of program and exit.
 
 
+## CONFIGURATION
+
+Each configuration option has a **scope** that determines where it may appear.
+
+**Scope** takes one of three values:
+
+  * *global* — the option applies to the entire server and may only appear at
+    the top level of the configuration file. Placing it inside a `[vhost:]`
+    section is a configuration error that prevents the server from starting
+    (e.g. `max-clients`, `device`, `route-add-cmd`).
+
+  * *vhost* — the option may appear at the top level applying to the default
+    virtual host, or inside a specific `[vhost:]` (e.g. `tls-priorities`,
+    `banner`, `cookie-timeout`).
+
+  * *vhost user* — the option may appear at the top level, in a `[vhost:]` section,
+    and also in per-user or per-group supplemental configuration files
+    (e.g. `routes`, `iroutes`, `no-udp`).
+
+The description of each option in the configuration file carries a `[scope:]`
+annotation that identifies its scope.
+
+Furthermore, certain configuration options specified are not-reloadable and a
+change only takes effect when restarting the server. These options are marked
+as `(non-reloadable)` in their scope annotation.
+
+## PER-USER AND PER-GROUP CONFIGURATION
+
+Options with *vhost user* scope may be further overridden for individual users or
+groups through supplemental INI-format configuration files. The relevant
+directories are set with `config-per-user` and `config-per-group` in the main
+configuration file.
+
+When a user connects, ocserv looks for a file named after their username in
+the per-user directory and a file named after their group in the per-group
+directory. Values found there override the corresponding values from the
+active virtual host configuration for that session only; they do not affect
+other connected users.
+
+Options not specified within a virtual host, or within a per-user/group file,
+fall back to the global configuration value, or to the built-in default if
+not set globally.
+
+## VIRTUAL HOSTS
+Ocserv supports virtual hosts, allowing a single instance to serve multiple
+domains with different configurations. This feature operates similarly to
+virtual hosts in Apache or Nginx — when clients connect requesting a specific
+domain name (via TLS SNI), the server selects the corresponding virtual host
+configuration. If no matching virtual host is found, the connection falls back
+to the global configuration.
+
+Virtual host sections are introduced in the configuration file with a header
+of the form:
+
+    [vhost:www.example.com]
+
+All options that follow (until the next section header or end of file) apply
+only to that virtual host.
+
 ## AUTHENTICATION
 Users can be authenticated in multiple ways, which are explained in the following
 paragraphs. Connected users can be managed using the _occtl_ tool.
@@ -242,26 +301,6 @@ should be generated as follows.
     $ certtool --generate-crl --load-ca-privkey ca-key.pem \
                --load-ca-certificate ca-cert.pem \
                --template crl.tmpl --outfile crl.pem
-
-## VIRTUAL HOSTS
-Ocserv supports virtual hosts, allowing a single instance to serve multiple
-domains with different configurations. This feature operates similarly to
-virtual hosts in Apache or Nginx - when clients connect requesting a specific
-domain name (via TLS SNI), the server selects the corresponding virtual host
-configuration. If no matching virtual host is found, the connection falls back
-to the global configuration.
-
-The global configuration can be thought of as a default virtual host that is
-used when an incoming connection does not match any explicitly defined virtual
-host.
-
-Options not specified within a virtual host are initialized to their default
-values. Default value is typically zero or an empty string, unless an option's
-description states otherwise.
-
-Note that certain options have global scope (affecting the entire server) and
-cannot be specified within virtual hosts. Such options are only recognized
-in the global configuration.
 
 ## FILES
 

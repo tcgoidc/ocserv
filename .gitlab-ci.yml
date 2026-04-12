@@ -24,6 +24,11 @@ variables:
     -Droot-tests=false
   JOBS: 6
 
+config-scope-check:
+  stage: preliminaries
+  script:
+  - python3 tests/check-config-scope.py
+
 Signoff:
   stage: preliminaries
   script:

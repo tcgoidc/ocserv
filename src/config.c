@@ -727,7 +727,8 @@ struct ini_ctx_st {
 static bool error_on_vhost(const char *vname, const char *oname)
 {
 	if (vname) {
-		fprintf(stderr, ERRSTR
+		fprintf(stderr,
+			ERRSTR
 			"'%s' cannot be set inside a virtual host section\n",
 			oname);
 		return true;
@@ -926,11 +927,13 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		} else if (strcmp(name, "socket-file") == 0) {
 			if (error_on_vhost(vhost->name, "socket-file"))
 				return 0;
-			PREAD_STRING(pool, vhost->perm_config.socket_file_prefix);
+			PREAD_STRING(pool,
+				     vhost->perm_config.socket_file_prefix);
 		} else if (strcmp(name, "occtl-socket-file") == 0) {
 			if (error_on_vhost(vhost->name, "occtl-socket-file"))
 				return 0;
-			PREAD_STRING(pool, vhost->perm_config.occtl_socket_file);
+			PREAD_STRING(pool,
+				     vhost->perm_config.occtl_socket_file);
 		} else if (strcmp(name, "chroot-dir") == 0) {
 			if (error_on_vhost(vhost->name, "chroot-dir"))
 				return 0;
@@ -938,7 +941,8 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		} else if (strcmp(name, "server-stats-reset-time") == 0) {
 			/* cannot be modified as it would require sec-mod to
 			 * re-read configuration too */
-			if (error_on_vhost(vhost->name, "server-stats-reset-time"))
+			if (error_on_vhost(vhost->name,
+					   "server-stats-reset-time"))
 				return 0;
 			READ_NUMERIC(vhost->perm_config.stats_reset_time);
 		} else if (strcmp(name, "pid-file") == 0) {
@@ -1061,8 +1065,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 #if defined(OCSERV_WORKER_PROCESS)
 		if (switch_comp_priority(pool, value) == 0) {
 			fprintf(stderr,
-				WARNSTR
-				"invalid compression modstring %s\n",
+				WARNSTR "invalid compression modstring %s\n",
 				value);
 		}
 #endif
