@@ -89,19 +89,23 @@ inline static const char *proto_to_str(fw_proto_t proto)
 #define DEFAULT_PASSWORD_POINTS 10
 #define DEFAULT_CONNECT_POINTS 1
 #define DEFAULT_KKDCP_POINTS 1
-#define DEFAULT_MAX_BAN_SCORE (MAX_PASSWORD_TRIES * DEFAULT_PASSWORD_POINTS)
+#define DEFAULT_MAX_BAN_SCORE 80
 #define DEFAULT_BAN_TIME 300
-#define DEFAULT_BAN_RESET_TIME 300
+#define DEFAULT_BAN_RESET_TIME 1200
 
 #define MIN_NO_COMPRESS_LIMIT 64
 #define DEFAULT_NO_COMPRESS_LIMIT 256
 
 /* The time after which a user will be forced to authenticate
  * or disconnect. */
-#define DEFAULT_AUTH_TIMEOUT_SECS 1800
+#define DEFAULT_AUTH_TIMEOUT_SECS 240
 
 /* The time after a disconnection the cookie is valid */
-#define DEFAULT_COOKIE_RECON_TIMEOUT 120
+#define DEFAULT_COOKIE_RECON_TIMEOUT 300
+
+#define DEFAULT_KEEPALIVE_TIME 32400
+#define DEFAULT_REKEY_TIME 172800
+#define DEFAULT_SWITCH_TO_TCP_TIMEOUT 25
 
 #define DEFAULT_DPD_TIME 90
 #define DEFAULT_MOBILE_DPD_TIME 1800

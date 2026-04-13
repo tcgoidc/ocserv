@@ -19,6 +19,10 @@
   attempt in the same session (#323)
 - Aligned the default values for 'dpd' and 'mobile-dpd' options with
   the values present in the default configuration (#680)
+- Aligned default values for 'keepalive', 'rekey-time', 'cookie-timeout',
+  'auth-timeout', 'ban-reset-time', 'max-ban-score', and
+  'switch-to-tcp-timeout' with the values documented in sample.config
+
 
 * Version 1.4.1 (released 2026-02-28)
 - [SECURITY] Fixed authentication bypass (medium severity) when combined

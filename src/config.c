@@ -651,7 +651,7 @@ static void apply_default_conf(vhost_cfg_st *vhost, unsigned int reload)
 	vhost->perm_config.config->no_compress_limit =
 		DEFAULT_NO_COMPRESS_LIMIT;
 #endif
-	vhost->perm_config.config->rekey_time = 24 * 60 * 60;
+	vhost->perm_config.config->rekey_time = DEFAULT_REKEY_TIME;
 	vhost->perm_config.config->cookie_timeout =
 		DEFAULT_COOKIE_RECON_TIMEOUT;
 	vhost->perm_config.config->auth_timeout = DEFAULT_AUTH_TIMEOUT_SECS;
@@ -668,7 +668,9 @@ static void apply_default_conf(vhost_cfg_st *vhost, unsigned int reload)
 	vhost->perm_config.config->dtls_psk = 1;
 	vhost->perm_config.config->predictable_ips = 1;
 	vhost->perm_config.config->use_utmp = 1;
-	vhost->perm_config.config->keepalive = 3600;
+	vhost->perm_config.config->keepalive = DEFAULT_KEEPALIVE_TIME;
+	vhost->perm_config.config->switch_to_tcp_timeout =
+		DEFAULT_SWITCH_TO_TCP_TIMEOUT;
 	vhost->perm_config.config->mobile_dpd = DEFAULT_MOBILE_DPD_TIME;
 }
 
