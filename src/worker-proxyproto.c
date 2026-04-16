@@ -154,6 +154,12 @@ static void parse_ssl_tlvs(struct worker_st *ws, uint8_t *data,
 			}
 			data += orig_len;
 		} else {
+			if (tlv.length == 0) {
+				oclog(ws, LOG_ERR,
+				      "proxy-hdr: zero-length TLV type %x, aborting",
+				      (unsigned int)tlv.type);
+				return;
+			}
 			AVAIL_HEADER_SIZE(data_size, tlv.length);
 			data += tlv.length;
 		}

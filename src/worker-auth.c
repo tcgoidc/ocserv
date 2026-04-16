@@ -746,9 +746,10 @@ static int recv_cookie_auth_reply(worker_st *ws)
 				ws->groupname[0] = 0;
 			}
 
-			if (msg->session_id.len > sizeof(ws->session_id)) {
+			if (msg->session_id.len != sizeof(ws->session_id)) {
 				oclog(ws, LOG_ERR,
-				      "msg->session_id.len too large");
+				      "msg->session_id.len unexpected (%zu)",
+				      msg->session_id.len);
 				ret = ERR_AUTH_FAIL;
 				goto cleanup;
 			}
