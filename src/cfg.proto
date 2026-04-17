@@ -165,7 +165,7 @@ message ReloadableConfig {
   /* Nested messages and special repeated fields                          */
   /* ------------------------------------------------------------------ */
 
-  /* [scope: vhost user] dns/routes/network sub-fields */
+  /* [scope: vhost user] dns/routes/network sub-fields; exception: network.name is [scope: global] */
   optional NetworkConfig network = 300;
 
   /* [scope: vhost user] per-client firewall port rules */

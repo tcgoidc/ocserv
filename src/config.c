@@ -1237,6 +1237,8 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 		READ_NUMERIC_VC(no_compress_limit);
 #endif
 	} else if (strcmp(name, "use-seccomp") == 0) {
+		if (error_on_vhost(vhost->name, "use-seccomp"))
+			return 0;
 		READ_TF_VC(isolate);
 		if (config->isolate)
 			fprintf(stderr, NOTESTR
@@ -1252,6 +1254,8 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			return 0;
 		READ_TF_VC(use_utmp);
 	} else if (strcmp(name, "use-dbus") == 0) {
+		if (error_on_vhost(vhost->name, "use-dbus"))
+			return 0;
 		READ_TF(use_dbus);
 		if (use_dbus != 0) {
 			fprintf(stderr, NOTESTR
@@ -1332,6 +1336,8 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			return 0;
 		READ_NUMERIC_VC(max_clients);
 	} else if (strcmp(name, "min-reauth-time") == 0) {
+		if (error_on_vhost(vhost->name, "min-reauth-time"))
+			return 0;
 		READ_NUMERIC_VC(ban_time);
 		fprintf(stderr, NOTESTR
 			"'min-reauth-time' was replaced by 'ban-time'\n");

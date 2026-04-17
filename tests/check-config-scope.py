@@ -218,8 +218,18 @@ def main():
                     f"has no error_on_vhost() call in config.c"
                 )
 
+    # Deprecated aliases that map to a canonical global option and call
+    # error_on_vhost() but intentionally have no sample.config entry.
+    DEPRECATED_GLOBAL_ALIASES = {
+        "use-seccomp",       # replaced by isolate-workers
+        "min-reauth-time",   # replaced by ban-time
+        "use-dbus",          # replaced by use-occtl
+    }
+
     # (c) Every error_on_vhost option must be annotated [... global] in sample.config
     for opt in sorted(global_in_code):
+        if opt in DEPRECATED_GLOBAL_ALIASES:
+            continue
         scope = sample_scopes.get(opt)
         if scope is None:
             errors.append(
