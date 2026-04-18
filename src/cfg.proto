@@ -120,6 +120,7 @@ message ReloadableConfig {
   optional bool   gssapi_no_local_user_map = 52; /* [scope: vhost] */
   optional bool   camouflage             = 53; /* [scope: vhost] */
   optional bool   no_udp                 = 54; /* [scope: vhost user] */
+  optional bool   expose_iroutes         = 55; /* [scope: vhost] */
 
   /* ------------------------------------------------------------------ */
   /* Strings — NULL pointer means "not set"; no has_X for proto2 strings */

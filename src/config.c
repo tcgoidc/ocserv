@@ -1476,7 +1476,7 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 	} else if (strcmp(name, "config-per-group") == 0) {
 		READ_STRING(config->per_group_dir);
 	} else if (strcmp(name, "expose-iroutes") == 0) {
-		READ_TF(vhost->expose_iroutes);
+		READ_TF(config->expose_iroutes);
 	} else if (strcmp(name, "default-user-config") == 0) {
 		READ_STRING(config->default_user_conf);
 	} else if (strcmp(name, "default-group-config") == 0) {
@@ -1711,7 +1711,7 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 			}
 		}
 
-		if (vhost->expose_iroutes != 0) {
+		if (config->expose_iroutes != 0) {
 			load_iroutes(config);
 		}
 
@@ -2269,7 +2269,6 @@ static void archive_cfg(struct list_head *head)
 
 		/* reset so the next reload re-inherits from the new default */
 		vhost->cfg_inherited = 0;
-		vhost->expose_iroutes = 0;
 
 		if (e->usage_count == NULL || *e->usage_count == 0) {
 			talloc_free(e);
@@ -2290,7 +2289,6 @@ static void clear_cfg(struct list_head *head)
 		cpos->config = NULL;
 		/* reset so the next reload re-inherits from the new default */
 		cpos->cfg_inherited = 0;
-		cpos->expose_iroutes = 0;
 	}
 }
 

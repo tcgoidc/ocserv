@@ -69,7 +69,6 @@ typedef struct vhost_cfg_st {
 	size_t auth_size;
 	char **eauth;
 	size_t eauth_size;
-	unsigned int expose_iroutes;
 	/* set after cfg_copy_from_default() populates this vhost from default */
 	unsigned int cfg_inherited;
 #ifdef HAVE_GSSAPI
