@@ -145,6 +145,7 @@ sequenceDiagram
     participant sm as sec-mod
     participant w as worker
 
+    Note over w: auth state: PS_AUTH_INACTIVE
     w->>sm: SEC_AUTH_INIT
     sm->>w: SEC_AUTH_REP
     w->>sm: SEC_AUTH_CONT
@@ -157,6 +158,7 @@ sequenceDiagram
     Note right of sm: contains additional config for client
     m->>w: AUTH_COOKIE_REP
     Note right of m: forwards additional config for client
+    Note over w: auth state: PS_AUTH_COMPLETED
     w->>m: SESSION_INFO
 
     w->>sm: SEC_CLI_STATS
