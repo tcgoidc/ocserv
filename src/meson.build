@@ -55,28 +55,34 @@ version_inc = configure_file(
 )
 
 # Protocol buffers
-ipc_proto = custom_target('ipc-proto',
-  input:   'ipc.proto',
-  output:  ['ipc.pb-c.c', 'ipc.pb-c.h'],
-  command: [protoc_c, '--c_out=@OUTDIR@',
-            '--proto_path=@CURRENT_SOURCE_DIR@', '@INPUT@'],
-)
-
-ctl_proto = custom_target('ctl-proto',
-  input:   'ctl.proto',
-  output:  ['ctl.pb-c.c', 'ctl.pb-c.h'],
-  depends: ipc_proto,
-  command: [protoc_c, '--c_out=@OUTDIR@',
-            '--proto_path=@CURRENT_SOURCE_DIR@', '@INPUT@'],
-)
-
-cfg_proto = custom_target('cfg-proto',
-  input:   'cfg.proto',
-  output:  ['cfg.pb-c.c', 'cfg.pb-c.h'],
-  depends: ipc_proto,
-  command: [protoc_c, '--c_out=@OUTDIR@',
-            '--proto_path=@CURRENT_SOURCE_DIR@', '@INPUT@'],
-)
+if protoc_c.found()
+  ipc_proto = custom_target('ipc-proto',
+    input:   'ipc.proto',
+    output:  ['ipc.pb-c.c', 'ipc.pb-c.h'],
+    command: [protoc_c, '--c_out=@OUTDIR@',
+              '--proto_path=@CURRENT_SOURCE_DIR@', '@INPUT@'],
+  )
+  ctl_proto = custom_target('ctl-proto',
+    input:   'ctl.proto',
+    output:  ['ctl.pb-c.c', 'ctl.pb-c.h'],
+    depends: ipc_proto,
+    command: [protoc_c, '--c_out=@OUTDIR@',
+              '--proto_path=@CURRENT_SOURCE_DIR@', '@INPUT@'],
+  )
+  cfg_proto = custom_target('cfg-proto',
+    input:   'cfg.proto',
+    output:  ['cfg.pb-c.c', 'cfg.pb-c.h'],
+    depends: ipc_proto,
+    command: [protoc_c, '--c_out=@OUTDIR@',
+              '--proto_path=@CURRENT_SOURCE_DIR@', '@INPUT@'],
+  )
+elif fs.exists('ipc.pb-c.c') and fs.exists('ctl.pb-c.c') and fs.exists('cfg.pb-c.c')
+  ipc_proto = files('ipc.pb-c.c', 'ipc.pb-c.h')
+  ctl_proto = files('ctl.pb-c.c', 'ctl.pb-c.h')
+  cfg_proto = files('cfg.pb-c.c', 'cfg.pb-c.h')
+else
+  error('protoc-c not found and no pre-generated pb-c files present')
+endif
 
 # gperf HTTP header table
 if gperf.found()
