@@ -1665,24 +1665,34 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 
 		if (vhost->auth_init == 0) {
 			if (vhost->auth_size == 0) {
-				fprintf(stderr,
-					ERRSTR
-					"%sthe 'auth' configuration option was not specified!\n",
-					PREFIX_VHOST(vhost));
-				exit(EXIT_FAILURE);
+				/* Named vhosts may inherit auth from the default;
+				 * figure_auth_funcs is skipped and auth_methods will
+				 * be populated by vhost_inherit_static_config below. */
+				if (vhost->name == NULL ||
+				    default_vhost(head)
+						    ->static_config
+						    .auth_methods == 0) {
+					fprintf(stderr,
+						ERRSTR
+						"%sthe 'auth' configuration option was not specified!\n",
+						PREFIX_VHOST(vhost));
+					exit(EXIT_FAILURE);
+				}
+			} else {
+				figure_auth_funcs(vhost, PREFIX_VHOST(vhost),
+						  &vhost->static_config,
+						  vhost->auth, vhost->auth_size,
+						  1, ctx.is_worker);
+				figure_auth_funcs(vhost, PREFIX_VHOST(vhost),
+						  &vhost->static_config,
+						  vhost->eauth,
+						  vhost->eauth_size, 0,
+						  ctx.is_worker);
+
+				figure_acct_funcs(vhost, PREFIX_VHOST(vhost),
+						  &vhost->static_config,
+						  vhost->acct, ctx.is_worker);
 			}
-
-			figure_auth_funcs(vhost, PREFIX_VHOST(vhost),
-					  &vhost->static_config, vhost->auth,
-					  vhost->auth_size, 1, ctx.is_worker);
-			figure_auth_funcs(vhost, PREFIX_VHOST(vhost),
-					  &vhost->static_config, vhost->eauth,
-					  vhost->eauth_size, 0, ctx.is_worker);
-
-			figure_acct_funcs(vhost, PREFIX_VHOST(vhost),
-					  &vhost->static_config, vhost->acct,
-					  ctx.is_worker);
-
 			vhost->auth_init = 1;
 		}
 
@@ -1769,24 +1779,43 @@ static void parse_cfg_file(void *pool, const char *file, struct list_head *head,
 			sizeof(vhost->static_config.member)); \
 	})
 
+/* Inherit a string only when the named vhost did not set its own value. */
+#define VHOST_INHERIT_STRDUP_IF_NULL(member)                                  \
+	({                                                                    \
+		if (vhost->static_config.member == NULL &&                    \
+		    defvhost->static_config.member != NULL)                   \
+			vhost->static_config.member = talloc_strdup(          \
+				vhost->pool, defvhost->static_config.member); \
+	})
+
 /*
  * Initialize per-vhost configuration by inheriting settings from default vhost.
  *
  * The reloadable ReloadableConfig is deep-copied from the default vhost via
  * protobuf pack+unpack so all fields (including strings, repeated fields, and
  * sub-messages) are inherited automatically.  Permanent static_cfg_st fields
- * (UID, ports, socket paths) are copied separately since they live outside
- * ReloadableConfig.
+ * live outside ReloadableConfig and are handled here in two groups:
+ *
+ *  [scope: global (non-reloadable)] — unconditional copy; named vhosts cannot
+ *    override these (UID, ports, socket paths, etc.).
+ *
+ *  [scope: vhost (non-reloadable)] — conditional copy ("inherit if not set");
+ *    named vhosts that provide their own value keep it.  auth_ctx / acct_ctx
+ *    are NULL at this point and will be initialised later by sec_auth_init();
+ *    the `additional` pointer inside auth[]/acct is read-only module config
+ *    that lives for the server's lifetime, so sharing the pointer is safe.
+ *
+ *  sup_config_type is excluded: cfg_alloc_vhost always pre-sets it to
+ *  SUP_CONFIG_FILE (non-zero), so there is no reliable sentinel to detect
+ *  "not explicitly set".  Named vhosts that need a different sup-config must
+ *  set it explicitly.
  */
 static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 					vhost_cfg_st *defvhost)
 {
-	/* The named vhost's ReloadableConfig was already pre-populated from the
-	 * default before parsing (cfg_ini_handler, cfg_inherited flag), so
-	 * named-vhost options have already overlaid it.  Only copy the
-	 * permanent static_cfg_st fields that live outside ReloadableConfig. */
+	unsigned int i;
 
-	/* copy permanent (non-reloadable) static_cfg_st fields */
+	/* --- [scope: global (non-reloadable)] — always copy --- */
 	VHOST_INHERIT(port);
 	VHOST_INHERIT(udp_port);
 	VHOST_INHERIT(uid);
@@ -1796,6 +1825,55 @@ static void vhost_inherit_static_config(vhost_cfg_st *vhost,
 	VHOST_INHERIT_STRDUP(socket_file_prefix);
 	VHOST_INHERIT_STRDUP(occtl_socket_file);
 	VHOST_INHERIT_STRDUP(chroot_dir);
+
+	/* --- [scope: vhost (non-reloadable)] — inherit if not set --- */
+
+	/* TLS credentials */
+	if (vhost->static_config.cert_size == 0 &&
+	    defvhost->static_config.cert_size > 0) {
+		vhost->static_config.cert_size =
+			defvhost->static_config.cert_size;
+		vhost->static_config.cert = talloc_array(
+			vhost->pool, char *, defvhost->static_config.cert_size);
+		for (i = 0; i < defvhost->static_config.cert_size; i++)
+			vhost->static_config.cert[i] = talloc_strdup(
+				vhost->pool, defvhost->static_config.cert[i]);
+	}
+	if (vhost->static_config.key_size == 0 &&
+	    defvhost->static_config.key_size > 0) {
+		vhost->static_config.key_size =
+			defvhost->static_config.key_size;
+		vhost->static_config.key = talloc_array(
+			vhost->pool, char *, defvhost->static_config.key_size);
+		for (i = 0; i < defvhost->static_config.key_size; i++)
+			vhost->static_config.key[i] = talloc_strdup(
+				vhost->pool, defvhost->static_config.key[i]);
+	}
+	VHOST_INHERIT_STRDUP_IF_NULL(ca);
+	VHOST_INHERIT_STRDUP_IF_NULL(dh_params_file);
+#ifdef ANYCONNECT_CLIENT_COMPAT
+	VHOST_INHERIT_STRDUP_IF_NULL(cert_hash);
+#endif
+
+	/* PKCS#11 / TPM pins */
+	VHOST_INHERIT_STRDUP_IF_NULL(pin_file);
+	VHOST_INHERIT_STRDUP_IF_NULL(srk_pin_file);
+	VHOST_INHERIT_STRDUP_IF_NULL(key_pin);
+	VHOST_INHERIT_STRDUP_IF_NULL(srk_pin);
+
+	/* Authentication methods */
+	if (vhost->static_config.auth_methods == 0 &&
+	    defvhost->static_config.auth_methods > 0) {
+		vhost->static_config.auth_methods =
+			defvhost->static_config.auth_methods;
+		memcpy(vhost->static_config.auth, defvhost->static_config.auth,
+		       sizeof(vhost->static_config.auth));
+	}
+
+	/* Accounting */
+	if (vhost->static_config.acct.amod == NULL &&
+	    defvhost->static_config.acct.amod != NULL)
+		vhost->static_config.acct = defvhost->static_config.acct;
 }
 
 /* sanity checks on config */

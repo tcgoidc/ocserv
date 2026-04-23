@@ -24,6 +24,8 @@ Checks performed:
       [...vhost...] (user-overridable options must also be settable per-vhost).
   (g) Every field in struct cfg_st and struct static_cfg_st in src/vpn.h has a
       [scope: ...] inline comment.
+  (h) Every [scope: vhost (non-reloadable)] field in static_cfg_st is referenced
+      in vhost_inherit_static_config() or listed in STATIC_VHOST_INHERIT_EXCEPTIONS.
 
 Exit code: 0 on success, 1 if any errors are found.
 """
@@ -179,6 +181,65 @@ def check_vpn_h_annotations(text):
 
 
 # ---------------------------------------------------------------------------
+# Step 5: Parse vhost_inherit_static_config() body — fields it references
+# ---------------------------------------------------------------------------
+def extract_static_inherit_fields(text):
+    """
+    Return the set of static_cfg_st field names referenced inside
+    vhost_inherit_static_config() via 'static_config.<field>'.
+    """
+    m = re.search(r'vhost_inherit_static_config\s*\([^)]+\)\s*\{', text)
+    if not m:
+        return set()
+    start = m.end()
+    depth = 1
+    pos = start
+    while pos < len(text) and depth > 0:
+        if text[pos] == '{':
+            depth += 1
+        elif text[pos] == '}':
+            depth -= 1
+        pos += 1
+    body = text[start:pos - 1]
+    # Match both direct access (static_config.field) and VHOST_INHERIT* macros.
+    direct = set(re.findall(r'static_config\.(\w+)', body))
+    macros = set(re.findall(r'VHOST_INHERIT\w*\s*\(\s*(\w+)\s*\)', body))
+    return direct | macros
+
+
+# ---------------------------------------------------------------------------
+# Step 6: Parse static_cfg_st in vpn.h — vhost (non-reloadable) field names
+# ---------------------------------------------------------------------------
+def extract_static_vhost_fields(text):
+    """
+    Return the set of field names in static_cfg_st annotated
+    [scope: vhost (non-reloadable)].
+    """
+    m = re.search(r'struct static_cfg_st\s*\{', text)
+    if not m:
+        return set()
+    start = m.end()
+    depth = 1
+    pos = start
+    while pos < len(text) and depth > 0:
+        if text[pos] == '{':
+            depth += 1
+        elif text[pos] == '}':
+            depth -= 1
+        pos += 1
+    body = text[start:pos - 1]
+
+    fields = set()
+    for line in body.splitlines():
+        if '[scope: vhost (non-reloadable)]' not in line:
+            continue
+        name_m = re.search(r'\b(\w+)\s*(?:\[[^\]]*\])?\s*;', line.strip())
+        if name_m:
+            fields.add(name_m.group(1))
+    return fields
+
+
+# ---------------------------------------------------------------------------
 # Main validation
 # ---------------------------------------------------------------------------
 def main():
@@ -289,6 +350,30 @@ def main():
             "src/vpn.h: the following fields are missing [scope:] annotations:"
         )
         errors.extend(missing_annot)
+
+    # (h) Every [scope: vhost (non-reloadable)] field in static_cfg_st must be
+    #     referenced in vhost_inherit_static_config() or listed as an exception.
+    #
+    # Exceptions — fields that legitimately cannot use "inherit if not set":
+    #   sup_config_type: cfg_alloc_vhost pre-sets it to SUP_CONFIG_FILE (non-zero),
+    #     so there is no reliable zero-sentinel to detect "not explicitly set".
+    STATIC_VHOST_INHERIT_EXCEPTIONS = {
+        "sup_config_type",
+    }
+
+    inherit_fields = extract_static_inherit_fields(config_c_text)
+    vhost_nonreload_fields = extract_static_vhost_fields(vpn_h_text)
+
+    for field in sorted(vhost_nonreload_fields):
+        if field in STATIC_VHOST_INHERIT_EXCEPTIONS:
+            continue
+        if field not in inherit_fields:
+            errors.append(
+                f"vpn.h: static_cfg_st field '{field}' is "
+                f"[scope: vhost (non-reloadable)] but is not referenced in "
+                f"vhost_inherit_static_config() — add inheritance or add to "
+                f"STATIC_VHOST_INHERIT_EXCEPTIONS"
+            )
 
     # Report
     if errors:

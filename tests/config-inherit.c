@@ -198,19 +198,27 @@ static void write_config(const char *path, const char *srcdir, int phase)
 		"\n",
 		srcdir, srcdir, srcdir);
 
-	/* Named vhost — only the mandatory fields; everything else is inherited */
-	fprintf(f,
-		"[vhost:named]\n"
-		"auth = \"plain[%s/data/test1.passwd]\"\n"
-		"server-cert = %s/certs/server-cert.pem\n"
-		"server-key = %s/certs/server-key.pem\n"
-		"ipv4-network = 192.168.101.0\n"
-		"ipv4-netmask = 255.255.255.0\n",
-		srcdir, srcdir, srcdir);
+	if (phase == 2) {
+		/* Named vhost omits auth/cert/key entirely — all must be inherited
+		 * from the default vhost via vhost_inherit_static_config. */
+		fprintf(f, "[vhost:named]\n"
+			   "ipv4-network = 192.168.101.0\n"
+			   "ipv4-netmask = 255.255.255.0\n");
+	} else {
+		/* Named vhost — only the mandatory fields; everything else inherited */
+		fprintf(f,
+			"[vhost:named]\n"
+			"auth = \"plain[%s/data/test1.passwd]\"\n"
+			"server-cert = %s/certs/server-cert.pem\n"
+			"server-key = %s/certs/server-key.pem\n"
+			"ipv4-network = 192.168.101.0\n"
+			"ipv4-netmask = 255.255.255.0\n",
+			srcdir, srcdir, srcdir);
 
-	if (phase == 1) {
-		/* Override a single ReloadableConfig scalar to verify overriding works */
-		fprintf(f, "keepalive = 55555\n");
+		if (phase == 1) {
+			/* Override a single ReloadableConfig scalar */
+			fprintf(f, "keepalive = 55555\n");
+		}
 	}
 
 	fclose(f);
@@ -388,6 +396,58 @@ int main(void)
 		exit(1);
 	}
 
+	check_inherited(named);
+
+	clear_old_configs(&vconfig);
+
+	/* ----------------------------------------------------------------
+	 * Phase 4: static_cfg_st inheritance — named vhost omits auth,
+	 * cert, and key entirely; they must be inherited from the default.
+	 * ---------------------------------------------------------------- */
+	write_config(tmpfile, srcdir, 2);
+
+	list_head_init(&vconfig);
+	if (vhost_add(pool, &vconfig, NULL, 0) == NULL) {
+		fprintf(stderr, "vhost_add failed\n");
+		exit(1);
+	}
+	parse_cfg_file(pool, tmpfile, &vconfig, 0);
+
+	named = find_vhost(&vconfig, "named");
+	if (named == NULL || named->name == NULL) {
+		fprintf(stderr,
+			"FAIL: named vhost not found in static-inherit phase\n");
+		exit(1);
+	}
+
+	/* cert and key must have been inherited from the default vhost */
+	if (named->static_config.cert_size == 0 ||
+	    named->static_config.cert == NULL ||
+	    named->static_config.cert[0] == NULL) {
+		fprintf(stderr,
+			"FAIL static-inherit: cert not inherited (cert_size=%zu)\n",
+			named->static_config.cert_size);
+		exit(1);
+	}
+	if (named->static_config.key_size == 0 ||
+	    named->static_config.key == NULL ||
+	    named->static_config.key[0] == NULL) {
+		fprintf(stderr,
+			"FAIL static-inherit: key not inherited (key_size=%zu)\n",
+			named->static_config.key_size);
+		exit(1);
+	}
+
+	/* auth must have been inherited */
+	if (named->static_config.auth_methods == 0 ||
+	    named->static_config.auth[0].enabled == 0) {
+		fprintf(stderr,
+			"FAIL static-inherit: auth not inherited (auth_methods=%u)\n",
+			named->static_config.auth_methods);
+		exit(1);
+	}
+
+	/* reloadable fields must still be inherited normally */
 	check_inherited(named);
 
 	clear_old_configs(&vconfig);
