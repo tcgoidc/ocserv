@@ -95,6 +95,7 @@ always_scripts = [
   'ocpasswd-test',
   'test-owasp-headers',
   'test-replay',
+  'test-fw-normalize-route',
 ]
 
 foreach s : always_scripts

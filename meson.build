@@ -40,7 +40,8 @@ endif
 
 gperf    = find_program('gperf', required: false)
 protoc_c = find_program('protoc-c', required: false)
-ipcalc   = find_program(['ipcalc', 'ipcalc-ng'], required: true)
+ipcalc   = find_program(['ipcalc', 'ipcalc-ng'], required: false)
+
 # Firewall script selection
 _fw_opt = get_option('firewall-script')
 fw_script_type = (_fw_opt == 'auto') ? 'nftables' : _fw_opt

@@ -1,4 +1,5 @@
 * Version 1.5.0 (unreleased)
+- ocserv-fw-nftables: dropped runtime dependency on ipcalc/ipcalc-ng (#709)
 - Fixed sudden disconnects after authentication for AnyConnect clients (#706)
 - Vhosts now inherit configuration options from the default vhost if
   they are not overridden (#705)
