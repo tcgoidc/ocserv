@@ -66,6 +66,15 @@ yum install -y rubygem-ronn-ng
 See [README-radius](doc/README-radius.md) for more information on Radius
 dependencies and its configuration.
 
+# Runtime dependencies
+
+When the `restrict-user-to-routes` or `restrict-user-to-ports` options are
+configured, ocserv invokes `/usr/libexec/ocserv-fw` at runtime to enforce
+firewall rules. That script requires either `nft` (nftables) or `iptables`
+depending on the backend selected with the `-Dfirewall-script=` meson option
+at build time. The default is `nftables` when `nft` is present at configure
+time, otherwise `iptables`.
+
 # Build instructions
 
 ```
