@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Run by 'meson dist' to add pre-generated files that autotools used to
 # distribute via EXTRA_DIST.  MESON_PROJECT_DIST_ROOT points to the
 # unpacked dist tree that meson is building the tarball from.
