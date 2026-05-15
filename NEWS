@@ -1,6 +1,10 @@
 * Version 1.5.0 (unreleased)
 - [SECURITY] Fixed unauthenticated heap buffer overflow in the unprivileged
   worker process via an oversized webvpncontext= cookie value (#719)
+- [SECURITY] Fixed unsigned integer underflow in DTLS MTU negotiation (#717):
+  a client advertising an out-of-range X-CSTP-Base-MTU or X-CSTP-MTU value
+  could potentially cause a buffer overflow in the unprivileged worker process.
+  Requires an authenticated client.
 - Added `syslog-facility` option to log to specified syslog facility (#691)
 - Fixed worker hang when a client disappears silently (#638)
 - Removed the 'cgroup' configuration option (used for cgroups v1).

@@ -159,7 +159,14 @@ struct http_req_st {
 
 	unsigned int headers_complete;
 	unsigned int message_complete;
+	/* link_mtu: peer's path (outer) MTU from X-CSTP-Base-MTU header.
+	 * Includes IP + UDP + DTLS record + crypto + CSTP framing headers.
+	 * Stored in ws->link_mtu after negotiation. */
 	unsigned int link_mtu;
+	/* tunnel_mtu: peer's plaintext (inner) MTU from X-CSTP-MTU header.
+	 * Legacy field from old clients that omit X-CSTP-Base-MTU.
+	 * Represents DATA_MTU(ws, link_mtu): usable payload after all
+	 * overhead is subtracted. */
 	unsigned int tunnel_mtu;
 
 	unsigned int no_ipv4;
@@ -268,11 +275,16 @@ typedef struct worker_st {
 	bandwidth_st b_tx;
 	bandwidth_st b_rx;
 
-	/* ws->link_mtu: The MTU of the link of the connecting. The plaintext
-	 *  data we can send to the client (i.e., MTU of the tun device,
-	 *  can be accessed using the DATA_MTU() macro and this value. */
+	/* link_mtu: negotiated outer MTU for this session.
+	 * Outer = IP + UDP + DTLS record + crypto + CSTP framing headers.
+	 * The plaintext payload that fits in one DTLS frame is
+	 *   DATA_MTU(ws, link_mtu) = link_mtu - dtls_proto_overhead
+	 *                                      - dtls_crypto_overhead.
+	 * Always >= MIN_MTU(ws) after negotiation. */
 	unsigned int link_mtu;
-	unsigned int adv_link_mtu; /* the MTU advertised on connection setup */
+	/* adv_link_mtu: link_mtu advertised to the peer at connect time.
+	 * Used as a ceiling so MTU probing never exceeds what we promised. */
+	unsigned int adv_link_mtu;
 
 	unsigned int
 		cstp_crypto_overhead; /* estimated overhead of DTLS ciphersuite + DTLS CSTP HEADER */

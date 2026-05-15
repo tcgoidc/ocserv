@@ -47,6 +47,7 @@ static inline void worker_exit(int status)
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <assert.h>
 #include <limits.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -1166,7 +1167,8 @@ static void session_info_send(worker_st *ws)
 static void link_mtu_set(struct worker_st *ws, struct dtls_st *dtls,
 			 unsigned int mtu)
 {
-	if (ws->link_mtu == mtu || mtu > sizeof(ws->buffer))
+	if (ws->link_mtu == mtu || mtu > sizeof(ws->buffer) ||
+	    mtu < MIN_MTU(ws))
 		return;
 
 	ws->link_mtu = mtu;
@@ -2168,18 +2170,29 @@ static int connect_handler(worker_st *ws)
 		ws->vinfo.mtu = ws->user_config->mtu;
 	oclog(ws, LOG_INFO, "configured link MTU is %u", ws->vinfo.mtu);
 
-	if (req->link_mtu > 0) {
+	if (req->link_mtu >= MIN_MTU(ws)) {
 		oclog(ws, LOG_INFO, "peer's link MTU is %u", req->link_mtu);
 		ws->vinfo.mtu = MIN(ws->vinfo.mtu, req->link_mtu);
+	} else if (req->link_mtu > 0) {
+		oclog(ws, LOG_INFO,
+		      "ignoring peer's link MTU %u (below minimum %u)",
+		      req->link_mtu, MIN_MTU(ws));
 	} else if (req->tunnel_mtu > 0) {
 		/* Old clients didn't send their link MTU, they send the plaintext MTU
 		 * they can transfer. */
-		ws->vinfo.mtu =
-			MIN(ws->vinfo.mtu, req->tunnel_mtu +
-						   MAX_DTLS_PROTO_OVERHEAD(ws) +
-						   MAX_DTLS_CRYPTO_OVERHEAD);
-		oclog(ws, LOG_INFO, "peer's data MTU is %u / link is %u",
-		      req->tunnel_mtu, ws->vinfo.mtu);
+		unsigned int lmtu = req->tunnel_mtu +
+				    MAX_DTLS_PROTO_OVERHEAD(ws) +
+				    MAX_DTLS_CRYPTO_OVERHEAD;
+		if (lmtu >= MIN_MTU(ws)) {
+			ws->vinfo.mtu = MIN(ws->vinfo.mtu, lmtu);
+			oclog(ws, LOG_INFO,
+			      "peer's data MTU is %u / link is %u",
+			      req->tunnel_mtu, ws->vinfo.mtu);
+		} else {
+			oclog(ws, LOG_INFO,
+			      "ignoring peer's tunnel MTU %u (back-computed link MTU %u below minimum %u)",
+			      req->tunnel_mtu, lmtu, MIN_MTU(ws));
+		}
 	}
 
 	/* Attempt to use the TCP connection maximum segment size to set a more
@@ -2194,6 +2207,12 @@ static int connect_handler(worker_st *ws)
 	}
 
 	calc_mtu_values(ws);
+
+	/* Invariant: MIN_MTU must always exceed the computed DTLS overhead so
+	 * that DATA_MTU() cannot underflow.  Fires in CI if a new cipher or
+	 * protocol addition erodes the margin. */
+	assert(MIN_MTU(ws) >
+	       ws->dtls_crypto_overhead + ws->dtls_proto_overhead);
 
 	if (DATA_MTU(ws, ws->link_mtu) < 1280 && ws->vinfo.ipv6 &&
 	    req->no_ipv6 == 0) {

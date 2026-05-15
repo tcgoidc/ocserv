@@ -170,6 +170,11 @@ struct vpn_st {
 
 	char *ipv6;
 	char *ipv6_local; /* local IPv6 address */
+	/* mtu: TUN device MTU assigned from config or peer negotiation.
+	 * Starting point; worker reduces it to ws->link_mtu after subtracting
+	 * DTLS/IP overhead.  Distinct from link_mtu (outer, includes all
+	 * encapsulation headers) and tunnel_mtu / DATA_MTU (inner plaintext
+	 * payload, equals link_mtu minus all overhead). */
 	unsigned int mtu;
 	unsigned int ipv6_subnet_prefix; /* ipv6 subnet prefix to assign */
 

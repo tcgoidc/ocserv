@@ -649,12 +649,16 @@ ciphersuite12_finish:
 		break;
 #endif
 
-	case HEADER_CSTP_BASE_MTU:
-		req->link_mtu = atoi((char *)value);
+	case HEADER_CSTP_BASE_MTU: {
+		unsigned long v = strtoul((char *)value, NULL, 10);
+		req->link_mtu = (v <= MAX_MSG_SIZE) ? (unsigned int)v : 0;
 		break;
-	case HEADER_CSTP_MTU:
-		req->tunnel_mtu = atoi((char *)value);
+	}
+	case HEADER_CSTP_MTU: {
+		unsigned long v = strtoul((char *)value, NULL, 10);
+		req->tunnel_mtu = (v <= MAX_MSG_SIZE) ? (unsigned int)v : 0;
 		break;
+	}
 	case HEADER_CSTP_ATYPE:
 		if (memmem(value, value_length, "IPv4", 4) == NULL)
 			req->no_ipv4 = 1;
