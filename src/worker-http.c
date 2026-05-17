@@ -61,10 +61,6 @@ static const struct known_urls_st known_urls[] = {
 	LL("/", get_auth_handler, post_auth_handler),
 	LL("/auth", get_auth_handler, post_auth_handler),
 	LL("/VPN", get_auth_handler, post_auth_handler),
-	LL("/cert.pem", get_cert_handler, NULL),
-	LL("/cert.cer", get_cert_der_handler, NULL),
-	LL("/ca.pem", get_ca_handler, NULL),
-	LL("/ca.cer", get_ca_der_handler, NULL),
 #ifdef ANYCONNECT_CLIENT_COMPAT
 	LL_DIR("/profiles", get_config_handler, NULL),
 	LL("/VPNManifest.xml", get_string_handler, NULL),

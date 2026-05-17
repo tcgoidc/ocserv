@@ -116,7 +116,7 @@ if have_cwrap
     'test-pass', 'test-pass-cert', 'test-pass-cert-rfc822name',
     'test-cert', 'test-group-pass', 'test-pass-group-cert',
     'test-pass-group-cert-no-pass', 'test-sighup',
-    'test-enc-key', 'test-sighup-key-change', 'test-get-cert',
+    'test-enc-key', 'test-sighup-key-change',
     'test-san-cert', 'test-pass-opt-cert',
     'test-cert-opt-pass',
     'haproxy-auth', 'test-maintenance', 'resumption',

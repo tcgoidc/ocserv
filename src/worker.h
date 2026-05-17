@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2016 Nikos Mavrogiannopoulos
+ * Copyright (C) 2013-2026 Nikos Mavrogiannopoulos
  *
  * Author: Nikos Mavrogiannopoulos
  *
@@ -348,10 +348,6 @@ int auth_user_deinit(worker_st *ws);
 int get_auth_handler(worker_st *server, unsigned int http_ver);
 int post_auth_handler(worker_st *server, unsigned int http_ver);
 int post_kkdcp_handler(worker_st *server, unsigned int http_ver);
-int get_cert_handler(worker_st *ws, unsigned int http_ver);
-int get_cert_der_handler(worker_st *ws, unsigned int http_ver);
-int get_ca_handler(worker_st *ws, unsigned int http_ver);
-int get_ca_der_handler(worker_st *ws, unsigned int http_ver);
 int get_svc_handler(worker_st *ws, unsigned int http_ver);
 int post_svc_handler(worker_st *ws, unsigned int http_ver);
 
