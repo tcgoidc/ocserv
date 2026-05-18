@@ -473,8 +473,8 @@ int parse_proxy_proto_header(struct worker_st *ws, int fd)
 		ws->remote_addr_len = sizeof(struct sockaddr_in6);
 
 		memset(&ws->our_addr, 0, sizeof(ws->our_addr));
-		sa->sin6_family = AF_INET6;
 		sa = (void *)&ws->our_addr;
+		sa->sin6_family = AF_INET6;
 		memcpy(&sa->sin6_addr, p + 16, 16);
 		memcpy(&sa->sin6_port, p + 34, 2);
 		ws->our_addr_len = sizeof(struct sockaddr_in6);
