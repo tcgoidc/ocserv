@@ -51,11 +51,40 @@ authentication flow.
 2. Create a **confidential** issue at:
    https://gitlab.com/openconnect/ocserv/-/issues/new?type=ISSUE&initialCreationContext=list-route
    On the issue form, check "This issue is confidential."
-3. Describe the potential impact and how to reproduce it. Do not include a public patch.
+3. Fill in every field of the structured template below. Do not include a public patch.
 4. Wait for maintainer response before proceeding.
 
 This applies to suspicions as well as confirmed bugs. If you are not sure whether
 something is a vulnerability, use the confidential path and let the maintainers decide.
+
+**Required fields for every confidential security report:**
+
+```
+Impact: <one sentence — what an attacker concretely achieves.
+        Examples: "unauthenticated access to the VPN tunnel",
+                  "prevents affected users from completing MFA login",
+                  "leaks session token to a co-tenant on the same server".
+        Do NOT write: "could affect authentication" or "may be exploited".
+        If the outcome is auth failure rather than auth bypass, say so explicitly.>
+
+Affected versions: <e.g. 1.4.2, or "all versions since commit X">
+
+Reproduction: <minimal numbered steps to trigger the behavior>
+
+Severity self-assessment: Critical | High | Medium | Low
+Justification: <one sentence — why you chose that severity, by reference to the
+               Impact line. If you are unsure, write "unsure — see Impact.">
+
+What I ruled out: <one sentence — the worse interpretation you checked and why it
+                  does not apply. E.g. "I verified this cannot allow login without
+                  credentials because the RADIUS server rejects the truncated State
+                  with an Access-Reject response.">
+```
+
+If you are performing a code-level analysis before reporting, load
+`contrib/ai/protocols/security-vulnerability.md` for the full analysis protocol
+and finding format. The ocserv-specific trust boundary model and vulnerability
+taxonomy are in the extension section of that file.
 
 ---
 

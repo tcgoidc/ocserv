@@ -86,91 +86,29 @@ Rules:
 
 ## Protocol: Memory Safety
 
-ocserv is C99. There is no garbage collection and no ownership abstraction beyond
-what the programmer enforces.
+Load and follow `contrib/ai/protocols/memory-safety-c.md` for the full analysis
+protocol. The ocserv-specific allocator rules (talloc vs. gnutls_malloc),
+cross-process pointer lifetime constraints, and `goto cleanup` discipline are in
+the extension section of that file.
 
-Rules:
-- **talloc is the project-wide allocator.** Use `talloc_zero`, `talloc_strdup`,
-  `talloc_array`, etc. for all allocations. Before introducing a new allocation,
-  check how surrounding code allocates similar data.
-- **Exception:** When passing memory to a GnuTLS API that will take ownership and
-  free it (e.g., `gnutls_datum_t` fields consumed by GnuTLS internals), use
-  `gnutls_malloc()` / `gnutls_free()`. Never pass talloc-allocated memory to a
-  GnuTLS API that will call `gnutls_free()` on it, and vice versa.
-- Check every allocation return value before use. Null-pointer dereferences in a
-  VPN server are denial-of-service vulnerabilities.
-- **Lifetime awareness:** `sec-mod` and `main` manage long-lived allocations that
-  persist across client connections. Worker allocations are per-connection and are
-  freed when the worker exits. Do not assume that a pointer valid in one process
-  is accessible or valid in another.
-- **Error paths:** Use `goto cleanup` with a single label that frees all resources
-  allocated in the function. Avoid multiple return paths that each partially free state.
-- seccomp isolation in workers prevents `mmap`/`mprotect` — this limits certain
-  exploit primitives, but memory corruption still causes crashes and client denial
-  of service. Treat all memory bugs as high-severity.
+seccomp isolation in workers prevents `mmap`/`mprotect` — this limits certain
+exploit primitives, but memory corruption still causes crashes and client denial
+of service. Treat all memory bugs as high-severity.
 
 ---
 
-## Protocol: Security Vulnerability Taxonomy
+## Protocol: Security Vulnerability Analysis
 
-When reviewing or investigating code for security issues, reason against this
-ocserv-specific taxonomy before concluding that code is safe.
+Load and follow `contrib/ai/protocols/security-vulnerability.md` for the full
+analysis protocol. The ocserv-specific trust boundary model, vulnerability
+taxonomy (IPC violations, TLS downgrade, seccomp escape, auth bypass,
+configuration injection, accounting manipulation), adversarial falsification
+discipline, and the enhanced 9-field output format (including the required
+**Impact** and **Why not a false positive** fields) are in the extension section
+of that file.
 
-**IPC trust boundary violations**
-Worker processes are unprivileged and potentially compromised. Data arriving at
-main or sec-mod from a worker via IPC must be treated as untrusted. Check:
-- Are protobuf fields from a worker used without length or range validation?
-- Are string fields from a worker used in a format string, file path, or exec call?
-- Can a worker send an IPC message that causes main or sec-mod to act on behalf
-  of a different client (SID confusion, cookie substitution)?
-
-**TLS/DTLS downgrade paths**
-- Does a change allow a client to negotiate a weaker cipher, an older protocol
-  version, or skip certificate verification?
-- Does a change affect resumption logic in a way that skips re-authentication?
-- Are DTLS and TLS sessions kept properly synchronized (a DTLS session must
-  correspond to an authenticated TLS session)?
-
-**seccomp escape vectors**
-- Does a new code path in the worker call a syscall not in the existing allowlist?
-- If yes, this requires an explicit seccomp filter update reviewed by a maintainer.
-  Do not add syscalls silently.
-
-**Authentication bypass**
-- Is `SEC_AUTH_INIT` always called for new sessions before any auth data is processed?
-- Can a client reuse a SID from a different session?
-- Can a client present a cookie for a session that has been invalidated or timed out?
-- Are multi-factor steps enforced in the correct order?
-
-**Configuration injection**
-- Does untrusted input (from a client or an unauthenticated IPC message) reach
-  `config.c` or `subconfig.c` parsers?
-- Are bracketed option strings (`radius[config=...]`) validated before parsing?
-
-**Accounting manipulation**
-- Can a worker supply falsified session statistics (bytes transferred, duration) to
-  RADIUS or PAM accounting?
-- Is the accounting data sourced from the worker (untrusted) or from main/sec-mod
-  (trusted)?
-
-If you identify a potential issue in any of these categories, **do not open a public
-issue.** Follow the security disclosure procedure in `AGENTS.md`.
-
-**Output format for every security finding:**
-```
-[SEVERITY: Critical | High | Medium | Low | Informational]
-CWE: <CWE-ID if applicable, e.g. CWE-416 Use After Free>
-Location: <file>:<line> or <function>
-Issue: <one-sentence description>
-Attack scenario: <concrete exploit path — who sends what, what executes, what is the impact>
-Remediation: <specific fix, not "validate input">
-Confidence: Confirmed | High | Needs-domain-check
-Why not a false positive: <the disproof attempt that failed — see Adversarial Falsification>
-```
-
-Do not file a finding without filling every field. "Possible" or "could" in the
-attack scenario means the finding is not yet Confirmed — downgrade to High or
-Needs-domain-check and state what additional evidence is required.
+If you identify a potential issue, **do not open a public issue.** Follow the
+security disclosure procedure in `AGENTS.md`.
 
 ---
 
