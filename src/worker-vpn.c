@@ -41,6 +41,7 @@ static inline void worker_exit(int status)
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -2697,6 +2698,9 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 		head = buf[0];
 	}
 
+	/* Caller ensures there is enough data */
+	assert(plain_size >= 0);
+
 	switch (head) {
 	case AC_PKT_DPD_RESP:
 		oclog(ws, LOG_TRANSFER_DEBUG, "received DPD response");
@@ -2779,6 +2783,11 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 		exit_worker_reason(ws, REASON_TEMP_DISCONNECT);
 
 	case AC_PKT_COMPRESSED:
+		if (plain_size == 0) {
+			oclog(ws, LOG_TRANSFER_DEBUG, "received empty packet");
+			return 0;
+		}
+
 		/* decompress */
 		if (is_dtls == 0) { /* CSTP */
 			if (ws->cstp_selected_comp == NULL) {
@@ -2814,6 +2823,11 @@ static int parse_data(struct worker_st *ws, uint8_t *buf, size_t buf_size,
 		plain = ws->decomp;
 		/* fall through */
 	case AC_PKT_DATA:
+		if (plain_size == 0) {
+			oclog(ws, LOG_TRANSFER_DEBUG, "received empty packet");
+			return 0;
+		}
+
 		oclog(ws, LOG_TRANSFER_DEBUG, "writing %zd byte(s) to TUN",
 		      plain_size);
 
