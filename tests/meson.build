@@ -79,6 +79,18 @@ config_inherit_exe = executable('config-inherit', 'config-inherit.c',
 test('config-inherit', config_inherit_exe,
   env: test_env, workdir: test_workdir, timeout: 30)
 
+# pam-guard-page: verifies that the PROT_NONE guard page beneath the PCL
+# coroutine stack converts a stack overflow into a crash (#619, #657).
+# Linux only; returns 77 (skip) on other platforms.
+if pam_dep.found()
+  pam_guard_page_exe = executable('pam-guard-page', 'pam-guard-page.c',
+    dependencies: test_base_deps + [pcl_dep],
+    include_directories: test_inc,
+  )
+  test('pam-guard-page', pam_guard_page_exe,
+    env: test_env, workdir: test_workdir, timeout: 30)
+endif
+
 # gen_oidc_test_data (only when OIDC enabled)
 if oidc_enabled
   gen_oidc_exe = executable('gen_oidc_test_data', 'generate_oidc_test_data.c',

@@ -48,8 +48,6 @@
 #include "auth/pam.h"
 #include "auth-unix.h"
 
-#define PAM_STACK_SIZE (1024 * 1024)
-
 #define MAX_REPLIES 2
 
 enum {
@@ -235,9 +233,14 @@ static int pam_auth_init(void **ctx, void *pool, void *vctx,
 		goto fail1;
 	}
 
-	pctx->cr = co_create(co_auth_user, pctx, NULL, PAM_STACK_SIZE);
-	if (pctx->cr == NULL)
+	size_t ssize = pam_stack_size();
+	pctx->cr = co_create(co_auth_user, pctx,
+			     pam_stack_alloc(&pctx->cr_stack, ssize),
+			     (int)ssize);
+	if (pctx->cr == NULL) {
+		pam_stack_free(&pctx->cr_stack);
 		goto fail2;
+	}
 
 	strlcpy(pctx->username, info->username, sizeof(pctx->username));
 
@@ -380,6 +383,7 @@ static void pam_auth_deinit(void *ctx)
 	str_clear(&pctx->msg);
 	if (pctx->cr != NULL)
 		co_delete(pctx->cr);
+	pam_stack_free(&pctx->cr_stack);
 	talloc_free(pctx);
 }
 
