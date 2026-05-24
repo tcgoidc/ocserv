@@ -45,6 +45,7 @@ struct pam_ctx_st {
 	str_st msg;
 	str_st prompt;
 	unsigned int sent_msg;
+	unsigned aborted; /* signal that the user session was aborted */
 	struct pam_response *replies; /* for safety */
 	unsigned int state; /* PAM_S_ */
 	unsigned int passwd_counter;

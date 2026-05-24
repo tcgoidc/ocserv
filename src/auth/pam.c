@@ -138,7 +138,16 @@ static int ocserv_conv(int msg_size, const struct pam_message **msg,
 
 			pctx->state = PAM_S_WAIT_FOR_PASS;
 			pctx->cr_ret = PAM_SUCCESS;
+
 			co_resume();
+
+			/* if meanwhile the remote user aborted, quit immediately */
+			if (pctx->aborted) {
+				oc_syslog(LOG_ERR,
+					  "Error in memory allocation in PAM");
+				return PAM_CONV_ERR;
+			}
+
 			pctx->state = PAM_S_INIT;
 
 			if (pctx->password[0] != 0) {
@@ -377,6 +386,12 @@ static int pam_auth_user(void *ctx, char *username, int username_size)
 static void pam_auth_deinit(void *ctx)
 {
 	struct pam_ctx_st *pctx = ctx;
+
+	/* if deinitializing while PAM is in use, allow it to cleanup */
+	if (pctx->cr != NULL && pctx->state == PAM_S_WAIT_FOR_PASS) {
+		pctx->aborted = 1;
+		co_call(pctx->cr);
+	}
 
 	pam_end(pctx->ph, pctx->cr_ret);
 	free(pctx->replies);
