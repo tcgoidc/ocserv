@@ -2918,8 +2918,15 @@ static void cstp_send_terminate(struct worker_st *ws)
 static void command_watcher_cb(EV_P_ ev_io *w, int revents)
 {
 	struct worker_st *ws = ev_userdata(worker_loop);
+	int ret;
 
-	int ret = handle_commands_from_main(ws);
+	if (revents & EV_ERROR) {
+		terminate_reason = REASON_ERROR;
+		cstp_send_terminate(ws);
+		/* unreachable */
+	}
+
+	ret = handle_commands_from_main(ws);
 
 	if (ret == ERR_NO_CMD_FD) {
 		terminate_reason = REASON_ERROR;
