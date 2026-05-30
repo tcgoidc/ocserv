@@ -28,6 +28,9 @@ config-scope-check:
   stage: preliminaries
   script:
   - python3 tests/check-config-scope.py
+  except:
+  - tags
+  - schedules
 
 Signoff:
   stage: preliminaries
@@ -37,6 +40,9 @@ Signoff:
   # Last bad commit
   - 'git log 6a65e3acdd3251fe20815cc2984a2781d9717173.. --grep "(^Signed-off-by)|(^Merge branch)|(^This reverts commit)" --extended-regexp --invert-grep --exit-code'
   - echo "None (good)"
+  except:
+  - tags
+  - schedules
 
 Debian:
   stage: testing
@@ -519,3 +525,6 @@ codespell/Fedora:
   - codespell .
   tags:
   - saas-linux-small-amd64
+  except:
+  - tags
+  - schedules
