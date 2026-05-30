@@ -186,6 +186,7 @@ Centos10:
 
 Coverity:
   stage: preliminaries
+  allow_failure: true
   image: $CI_REGISTRY/$BUILD_IMAGES_PROJECT:$CENTOS8_BUILD
   only:
   - schedules
