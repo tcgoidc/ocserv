@@ -60,6 +60,7 @@ server.
 
   * **-p, --pid-file**=_FILE_:
     Specify a PID file for the server.
+    This option is also available as the configuration file key **pid-file**.
 
   * **-e, --log-stderr**:
     Log to stderr.
