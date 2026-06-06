@@ -54,6 +54,47 @@ State the specific principle violated and the minimal change that would satisfy 
 
 ---
 
+## Protocol: Requirements Elicitation
+
+Load and follow `contrib/ai/protocols/requirements-elicitation.md` when converting
+a natural language feature or design description into structured requirements. The
+ocserv-specific extensions cover: process assignment (`[PROC: main/sec-mod/worker]`),
+mandatory negative requirements for `SEC`/`AUTH`/`IPC` categories, canonical category
+tags (`AUTH`, `IPC`, `CFG`, `SEC`, `NET`, `COMPAT`, `ACCT`, `LOG`), implicit constraint
+flags for Linux-only interfaces and seccomp, ambiguity patterns specific to ocserv
+terminology (session, reload, secure), and test infrastructure mapping for acceptance
+criteria.
+
+---
+
+## Protocol: Requirements from Implementation
+
+Load and follow `contrib/ai/protocols/requirements-from-implementation.md` when
+reverse-engineering what an existing module guarantees. The ocserv-specific extensions
+cover: the `auth_mod_st` vtable as the primary auth API surface, IPC message fields
+(`src/ipc.proto`, `src/ctl.proto`) as entry points, talloc ownership as the primary
+precondition to establish, the documentation test (`doc/ocserv.8.md` / `doc/sample.config`
+as the essential-behavior oracle), process safety in place of thread safety, and
+additional gap checks for vtable NULL-safety, IPC field coverage, config ↔ doc
+alignment, reload coverage, and seccomp coverage.
+
+---
+
+## Protocol: Requirements Reconciliation
+
+Load and follow `contrib/ai/protocols/requirements-reconciliation.md` when aligning
+requirements across multiple sources — the OpenConnect protocol (`OC-PROTO`), observed
+Cisco AnyConnect client behavior (`AC-CLIENT`), IETF RFCs (`RFC-TLS`, `RFC-DTLS`), and
+the ocserv implementation (`OCSERV`). The ocserv-specific extensions define the standard
+source inventory, functional area coverage matrix, alignment anchors (CSTP headers,
+HTTP exchange phases, TLS parameters), AnyConnect-specific classification rules
+(`[COMPAT-RISK]`, `[COMPAT-CRITICAL]`), security-downgrade handling (`[SEC-RISK]`),
+and unified category tags (`CONN`, `AUTH`, `SESSION`, `DATA`, `CTRL`, `CFG`, `COMPAT`,
+`SEC`, `EXT`). Always read `doc/README-cisco-svc.md` before starting the source
+inventory.
+
+---
+
 ## Protocol: Anti-Hallucination
 
 This is a C codebase with specific library APIs, IPC field names, and kernel interfaces.
