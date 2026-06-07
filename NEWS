@@ -1,4 +1,4 @@
-* Version 1.5.0 (unreleased)
+* Version 1.5.0 (released 2026-06-07)
 - [SECURITY] Fixed unauthenticated heap buffer overflow in the unprivileged
   worker process via an oversized webvpncontext= cookie value (#719)
 - [SECURITY] Fixed unsigned integer underflow in DTLS MTU negotiation (#717):
