@@ -266,6 +266,12 @@ require a server restart — document this if your change is affected by it.
 
 Use this when preparing or reviewing a patch:
 
+**Requirements (`doc/requirements/`):**
+- [ ] Relevant `REQ-*` entry found or created before the code change
+- [ ] If an existing requirement is altered by this patch: requirement updated first, before touching implementation
+- [ ] Search `doc/requirements/` for `REQ-*`/`AC-*` entries citing touched files, functions, or config options; none silently contradicted
+- [ ] Code, requirement, and `doc/ocserv.8.md` / `doc/sample.config` all agree on the new behavior
+
 **Design principles (see Protocol: Design Review above):**
 - [ ] Locality: feature contained in a bounded set of files; no new cross-cutting helpers
 - [ ] Dependencies: new helpers checked against `src/ccan/` first; new external libs have approved design issue
