@@ -35,6 +35,7 @@ the file.
 
 | Document | ID prefix | Process(es) | Sources |
 |----------|-----------|-------------|---------|
+| `internal/general.md` | `REQ-GEN-` | all (policy) | `AGENTS.md`, `doc/ocserv.8.md`, `doc/sample.config` |
 | `internal/ipc.md` | `REQ-IPC-` | all (cross-process) | `src/ipc.proto`, `src/ctl.proto`, `doc/design.md#ipc-communication*` |
 | `internal/config.md` | `REQ-CONFIG-` | all (cross-process) | `src/config.c`, `src/config-ports.c`, `src/config-kkdcp.c`, `src/subconfig.c`, `src/sup-config/file.c`, `src/cfg.proto`, `src/vpn.h`, `src/vhost.h`, `doc/sample.config`, `tests/check-config-scope.py`, `tests/config-inherit.c` |
 | `internal/sec-mod.md` | `REQ-SECMOD-` | sec-mod | `src/sec-mod*.c`, `src/sec-mod-auth.h`, `src/auth/*`, `src/acct/*` |
@@ -58,7 +59,10 @@ REQ-<PREFIX><CATEGORY>-<NNN>
 - `<PREFIX>` identifies the document (table above); `IPC` has no
   further category — IDs are `REQ-IPC-NNN`, grouped by message name in
   the document body.
-- `<CATEGORY>` for `internal/*` documents uses the tags from
+- `<CATEGORY>` for `internal/general.md` uses: `SEC`, `TECH`, `STYLE`,
+  `TEST`, `COMPAT` (cross-cutting policy categories; see that file's
+  frontmatter for definitions).
+- `<CATEGORY>` for other `internal/*` documents uses the tags from
   `requirements-from-implementation.md`: `INIT`, `AUTH`, `ACCT`,
   `SESSION`, `CFG`, `NET`, `SEC`, `ERR`, `TEARDOWN`.
 - `<CATEGORY>` for `protocol/unified.md` uses the tags from

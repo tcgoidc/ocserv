@@ -306,16 +306,18 @@ Do not edit the generated `*.pb-c.c` / `*.pb-c.h` files by hand.
 
 ### Canonical Technology Choices
 
-One tool for each job. These decisions are not open for per-feature debate — departing
-from any of them requires a design-discussion issue and explicit maintainer approval.
+One tool for each job. These decisions are requirements, not preferences — the
+normative form with acceptance criteria is in
+`doc/requirements/internal/general.md`. Departing from any of them requires a
+design-discussion issue and explicit maintainer approval.
 
-| Concern | Tool | Rule |
-|---------|------|------|
-| Memory management | talloc | Use `talloc_zero`, `talloc_strdup`, `talloc_array`, etc. everywhere. **Exception:** use `gnutls_malloc()` / `gnutls_free()` only for memory whose lifetime GnuTLS owns — never mix the two for the same allocation. Check every return before use. Error paths: `goto cleanup` with a single freeing label. |
-| Cryptography | GnuTLS / nettle | No OpenSSL. Call GnuTLS through `src/tlslib.c` wrappers — not directly from worker or main code. |
-| IPC serialization | protobuf-c | All cross-process messages are defined in `src/ipc.proto` and `src/ctl.proto`. Regenerate C bindings with `protoc-c` after any `.proto` edit; never hand-edit generated files. |
-| Configuration parsing | inih (INI) | Flat `key = value` pairs; bracketed sub-sections for per-module options (`auth = pam[...]`). No new structured sub-formats (no JSON, YAML, or additional config files for things expressible as key=value). |
-| Utility constructs | CCAN (`src/ccan/`) | Check here before writing a new helper or adding a dependency. CCAN provides hash tables, linked lists, string utilities, and more as copy-in modules with no extra build overhead. To bring in a new CCAN module, copy it from https://github.com/rustyrussell/ccan into `src/ccan/` and add it to the build. |
+| Concern | Tool | Requirement |
+|---------|------|-------------|
+| Memory management | talloc | Use `talloc_zero`, `talloc_strdup`, `talloc_array`, etc. everywhere. Exception: `gnutls_malloc()`/`gnutls_free()` only for GnuTLS-owned memory — never mix the two for the same allocation. Error paths: `goto cleanup` with a single freeing label. See **REQ-GEN-TECH-001**. |
+| Cryptography | GnuTLS / nettle | No OpenSSL. Call GnuTLS through `src/tlslib.c` wrappers — not directly from worker or main code. See **REQ-GEN-TECH-002**. |
+| IPC serialization | protobuf-c | All cross-process messages are defined in `src/ipc.proto` and `src/ctl.proto`. Regenerate C bindings with `protoc-c` after any `.proto` edit; never hand-edit generated files. See **REQ-GEN-TECH-003**. |
+| Configuration parsing | inih (INI) | Flat `key = value` pairs; bracketed sub-sections for per-module options (`auth = pam[...]`). No new structured sub-formats (no JSON, YAML, or additional config files for things expressible as key=value). See **REQ-GEN-TECH-004**. |
+| New external dependency | requires approval | Check `src/ccan/` first; consider a trivial inline implementation; if neither suffices, open a design-discussion issue before adding. See **REQ-GEN-TECH-005**. |
 
 ### Design Principles
 
@@ -325,15 +327,11 @@ cross-module state, callbacks, and "utility" files are a design smell — if you
 requires them, reconsider the module boundary first. When complexity must be hidden,
 hide it inside a module with a clean header interface; do not scatter it.
 
-**Resist dependency growth.** Before adding anything external: (1) check `src/ccan/`
-first — it likely has what you need; (2) consider a trivial inline implementation over
-a new dependency; (3) if a new external library is truly necessary, open a design
-discussion issue. Every dependency is a build, packaging, and security-audit cost paid
-forever.
+**Resist dependency growth.** See **REQ-GEN-TECH-005** for the normative rule.
+In short: check `src/ccan/` first, then consider a trivial inline implementation;
+only then open a design-discussion issue for a new external library.
 
-**Configuration stays in INI.** Do not introduce embedded structured formats for things
-expressible as flat key=value pairs. Complexity in configuration is a cost paid by every
-administrator forever.
+**Configuration stays in INI.** See **REQ-GEN-TECH-004** for the normative rule.
 
 **Explicit over implicit.** No auto-discovery, no runtime plugin loading, no silent
 defaults that change behavior. Every configurable behavior must be expressible in
@@ -341,51 +339,27 @@ defaults that change behavior. Every configurable behavior must be expressible i
 
 ### Code Style
 
-- C99 standard
-- Linux kernel coding style: tabs, 8-space tab width, 80-column limit
-- Format check: `clang-format --dry-run -Werror <file>` (run on all files under `src/` and `tests/`)
+See **REQ-GEN-STYLE-001** and **REQ-GEN-STYLE-002** for the normative rules.
+In brief:
+
+- C99 standard; Linux kernel coding style (tabs, 8-space tab width, 80-column limit)
+- `clang-format --dry-run -Werror` must pass on all files under `src/` and `tests/`
 - Header guards: `#ifndef FILENAME_H` / `#define FILENAME_H` / `#endif /* FILENAME_H */`
-- **Comments:** Prefer self-documenting code — meaningful names and short functions
-  that do one thing. Add a comment only when the *why* is non-obvious: a hidden
-  constraint, a protocol expectation, or a workaround. Do not comment what the
-  code does; well-named identifiers already do that.
-
-### Preprocessor Conditionals
-
-Deeply nested or long `#ifdef` chains obscure the actual code flow and make review
-difficult. The rules:
-
-- **`#ifdef` in a function body**: one level of nesting maximum, at most 5 lines per
-  branch. If the block is longer, extract it into a separately-defined function.
-- **Stub pattern for optional features**: define a no-op (or error-returning) stub in
-  the header for the disabled case, so call sites need no `#ifdef` at all:
-  ```c
-  #ifdef HAVE_SECCOMP
-  int worker_apply_seccomp_filter(worker_st *ws);
-  #else
-  static inline int worker_apply_seccomp_filter(worker_st *ws) { return 0; }
-  #endif
-  ```
-- **Significant feature code** (more than one function) belongs in its own `.c` file
-  included or excluded by the build system — not behind inline conditionals.
-  The existing `src/auth/` and `src/acct/` structure is the model to follow.
-- Always annotate `#endif` with the condition it closes: `#endif /* HAVE_SECCOMP */`.
+- `#ifdef` in function bodies: ≤ 1 nesting level, ≤ 5 lines per branch; optional
+  features use the stub pattern; `#endif` always annotated
+- **Comments:** Prefer self-documenting code. Add a comment only when the *why* is
+  non-obvious: a hidden constraint, a protocol expectation, or a workaround. Do not
+  comment what the code does; well-named identifiers already do that.
 
 ### Testing New Functionality
 
-Every new feature or bug fix is incomplete without tests:
+See **REQ-GEN-TEST-001** for the normative rule. In brief:
 
-- Write a **positive test** (correct behavior when the feature is exercised) and a
-  **negative test** (correct rejection of bad input or error conditions).
-- For security-relevant code (auth, cookies, IPC validation) the negative test is the
-  more important of the two — write it first.
-- For **bug fixes**, write the test that reproduces the bug and confirm it fails *before*
-  applying the fix. A test written after the fix cannot prove it is meaningful.
-- **Tests must be self-diagnosing.** A failure must be explainable from the test output
-  alone — no silent exit-code-only failures that require local reproduction to understand.
-  Shell tests must print what they were testing and why it failed (e.g. `echo "FAIL: expected
-  X, got Y"`). C unit tests must print the failing condition and relevant values before
-  returning non-zero. Reviewers will reject tests whose failures are opaque.
+- Write a **positive test** and a **negative test** for every feature or fix.
+- For security-relevant code (auth, cookies, IPC validation) write the negative test first.
+- For **bug fixes**, confirm the reproducing test fails before applying the fix.
+- Tests must be **self-diagnosing** — failure explainable from output alone; shell tests
+  print `"FAIL: expected X, got Y"`; C unit tests print the failing condition and values.
 - Register all new tests in `tests/meson.build`.
 
 ### Adding Configuration Options
@@ -405,11 +379,10 @@ See `src/auth/plain.c` or `src/auth/pam.c` for reference.
 
 ### Platform Portability
 
-ocserv is a Linux service. BSD (FreeBSD, OpenBSD) compatibility is maintained on a
-best-effort basis: patches should not gratuitously break BSD, but Linux-only features
-are accepted. When adding Linux-specific code, use `#ifdef __linux__` so BSD builds
-continue to compile. On BSD, the absence of procfs means configuration changes
-require a server restart — document this if your change is affected by it.
+See **REQ-GEN-COMPAT-001** for the normative rule. In brief: Linux is the primary
+target; BSD is best-effort. Guard Linux-specific code with `#ifdef __linux__`. Note
+in `doc/ocserv.8.md` any option whose behavior differs on BSD (e.g. no live reload
+without procfs).
 
 ---
 
