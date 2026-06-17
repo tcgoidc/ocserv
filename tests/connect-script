@@ -5,8 +5,7 @@ builddir=${builddir:-.}
 
 verify_env_set() {
 	if test -z "${!1}";then
-		env >out.$REASON.fail.tmp
-		echo "$1 environment variable was not set" >>out.$REASON.fail.tmp
+		echo "$1 environment variable was not set" >&2
 		exit 1
 	fi
 }
