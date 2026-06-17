@@ -232,6 +232,8 @@ musl/Alpine:
     expire_in: 1 week
     untracked: true
     when: on_failure
+    exclude:
+      - "**/*.tmp"
 
 Fedora:
   stage: testing
@@ -254,6 +256,8 @@ Fedora:
     expire_in: 1 day
     untracked: true
     when: always
+    exclude:
+      - "**/*.tmp"
 
 noprocfs/Fedora:
   stage: testing
@@ -273,6 +277,8 @@ noprocfs/Fedora:
     expire_in: 1 week
     untracked: true
     when: on_failure
+    exclude:
+      - "**/*.tmp"
 
 noprocfs/distcheck/Fedora:
   stage: testing
@@ -318,6 +324,8 @@ clang/Fedora:
     expire_in: 1 week
     untracked: true
     when: on_failure
+    exclude:
+      - "**/*.tmp"
 
 # Tests seccomp filters by asking seccomp to fail with a trap
 seccomp/Fedora:
@@ -338,6 +346,8 @@ seccomp/Fedora:
     expire_in: 1 week
     untracked: true
     when: on_failure
+    exclude:
+      - "**/*.tmp"
 
 # Tests per-worker RLIMIT_DATA by making setrlimit failures fatal
 worker-memory-limit/Fedora:
@@ -358,6 +368,8 @@ worker-memory-limit/Fedora:
     expire_in: 1 week
     untracked: true
     when: on_failure
+    exclude:
+      - "**/*.tmp"
 
 minimal:
   stage: testing
