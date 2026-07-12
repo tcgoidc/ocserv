@@ -1,0 +1,228 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Reproducer for: RADIUS Acct-Session-Time is inflated for a session that
+# reconnects several times under the same cookie (roaming, DPD, a
+# new-tunnel rekey). Each reconnected segment used to report an uptime
+# measured cumulatively from the *original* session start, and sec-mod
+# summed these cumulative per-segment values instead of taking the final
+# one -- so the Stop record's Acct-Session-Time grew roughly with the
+# number of reconnects instead of reflecting the real wall-clock duration.
+#
+# This test drives three cookie-resumed segments (simulating reconnects via
+# SIGKILL, as tests/test-cookie-timeout does, so the session is not torn
+# down between segments) with idle gaps in between, then performs a clean
+# final disconnect (SIGTERM, which ocserv treats as an explicit user
+# disconnect and reports the accounting Stop immediately rather than
+# waiting for cookie-timeout to elapse). It then checks that the Stop's
+# Acct-Session-Time is close to the real elapsed wall-clock time, not the
+# sum of the three segments' individual cumulative uptimes.
+#
+# It also cross-checks occtl's view of the same session via `occtl -j show
+# user`, which reports two distinct clocks (src/occtl/unix.c): raw_connected_at
+# (main's proc->conn_time, the current TCP/DTLS connection's start -- must
+# reset on every reconnect) and raw_session_started_at (propagated from
+# sec-mod's e->created on every SECM_SESSION_OPEN -- must stay pinned to the
+# original session start across reconnects, the same quantity the RADIUS fix
+# uses for Acct-Session-Time). This guards against a regression where the two
+# independent propagation paths (sec-mod -> RADIUS accounting directly, vs.
+# sec-mod -> main -> ctl socket -> occtl) drift apart.
+
+OCCTL="${OCCTL:-../src/occtl/occtl}"
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+PATH=${PATH}:/usr/sbin
+IP=$(command -v ip)
+RADIUSLOG=radius-reconnect-acct.$$.log
+RADIUSD=$(command -v radiusd)
+OCCTL_SOCKET=./occtl-radius-reconnect-$$.socket
+
+if test -z "${RADIUSD}";then
+	RADIUSD=$(command -v freeradius)
+fi
+
+. `dirname $0`/common.sh
+
+eval "${GETPORT}"
+
+if test -z "${IP}";then
+	echo "no IP tool is present"
+	exit 1
+fi
+
+if test -z "${RADIUSD}";then
+	echo "no radiusd is present"
+	exit 77
+fi
+
+if test "$(id -u)" != "0";then
+	echo "This test must be run as root"
+	exit 77
+fi
+
+echo "Testing whether Acct-Session-Time stays accurate across cookie reconnects... "
+
+function finish {
+  echo " * Cleaning up..."
+  cleanup_client_server
+  test -n "${RADIUSPID}" && kill ${RADIUSPID} >/dev/null 2>&1
+  test -f "${RADIUSLOG}" && cat "${RADIUSLOG}"
+  rm -f "${RADIUSLOG}"
+}
+trap finish EXIT
+
+# server address
+. `dirname $0`/random-net.sh
+. `dirname $0`/ns.sh
+
+${CMDNS2} ${IP} link set dev lo up
+
+# Run servers
+rm -f ${RADIUSLOG}
+${CMDNS2} ${RADIUSD} -d ${RADDB_DIR}/ -s -xx -l ${RADIUSLOG} &
+RADIUSPID=$!
+
+update_config radius.config
+if test "$VERBOSE" = 1;then
+DEBUG="-d 3"
+fi
+
+${CMDNS2} ${SERV} -p ${PIDFILE} -f -c ${CONFIG} ${DEBUG} & PID=$!
+
+wait_file_contents "${RADIUSLOG}" "Ready to process requests" 30
+wait_ns_port t ${PORT}
+
+USERNAME=test
+
+echo " * Obtaining cookie for ${USERNAME}... "
+eval `echo "test" | ${CMDNS1} ${OPENCONNECT} --passwd-on-stdin -q ${ADDRESS}:${PORT} -u ${USERNAME} --authenticate --servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8=`
+
+if test -z "$COOKIE";then
+	fail $PID "Could not obtain cookie"
+fi
+
+SEGMENT_SECS=5
+IDLE_SECS=5
+START=$(date +%s)
+SESSION_START=""
+
+for SEG in 1 2 3; do
+	echo " * Connecting (segment ${SEG}) with cookie... "
+	${CMDNS1} ${OPENCONNECT} ${ADDRESS}:${PORT} -u ${USERNAME} -C "$COOKIE" \
+		--servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= \
+		-s ${srcdir}/scripts/vpnc-script --pid-file="${CLIPID}" \
+		--background >/dev/null
+
+	sleep 2
+
+	if test ! -f "${CLIPID}";then
+		fail $PID "Could not establish segment ${SEG}"
+	fi
+
+	# raw_connected_at is main's proc->conn_time (this TCP/DTLS connection's
+	# start) and must be recent on every segment; raw_session_started_at is
+	# propagated from sec-mod's e->created on every SECM_SESSION_OPEN and
+	# must stay pinned to the original session start across reconnects.
+	NOW_CHECK=$(date +%s)
+	read -r CONNECTED_AT SESSION_STARTED_AT <<< "$(${CMDNS2} ${OCCTL} -s ${OCCTL_SOCKET} -j show user ${USERNAME} | jq -r '.[] | "\(.raw_connected_at) \(.raw_session_started_at)"')"
+
+	if test -z "$CONNECTED_AT" || test -z "$SESSION_STARTED_AT";then
+		fail $PID "occtl did not report raw_connected_at/raw_session_started_at for segment ${SEG}"
+	fi
+
+	CONNECTED_AGE=$((NOW_CHECK - CONNECTED_AT))
+	if test "$CONNECTED_AGE" -lt 0 || test "$CONNECTED_AGE" -gt 10;then
+		fail $PID "FAIL: segment ${SEG} raw_connected_at is not recent (age ${CONNECTED_AGE}s, expected [0,10]) -- did it fail to reset on reconnect?"
+	fi
+
+	if test -z "$SESSION_START";then
+		SESSION_START=$SESSION_STARTED_AT
+		echo "occtl: segment ${SEG} raw_connected_at age ${CONNECTED_AGE}s, raw_session_started_at ${SESSION_START}"
+	else
+		if test "$SESSION_STARTED_AT" != "$SESSION_START";then
+			fail $PID "FAIL: segment ${SEG} raw_session_started_at changed ($SESSION_STARTED_AT, expected $SESSION_START) -- reconnect reset the logical session start!"
+		fi
+		echo "occtl: segment ${SEG} raw_connected_at age ${CONNECTED_AGE}s, raw_session_started_at unchanged (${SESSION_STARTED_AT})"
+	fi
+
+	sleep ${SEGMENT_SECS}
+
+	if test "${SEG}" -lt 3;then
+		# Simulate an unclean reconnect (roaming/DPD): kill -9 leaves
+		# no chance for a BYE packet, so ocserv keeps the session
+		# alive (bounded by cookie-timeout) for the next reconnect,
+		# exactly as tests/test-cookie-timeout relies on.
+		kill -9 $(cat "${CLIPID}") >/dev/null 2>&1
+		rm -f "${CLIPID}"
+		sleep ${IDLE_SECS}
+	else
+		# Final segment: a clean disconnect (SIGTERM) makes openconnect
+		# send a BYE packet, which ocserv treats as an explicit user
+		# disconnect and reports the accounting Stop immediately.
+		kill $(cat "${CLIPID}") >/dev/null 2>&1
+		rm -f "${CLIPID}"
+	fi
+done
+
+END=$(date +%s)
+ACTUAL=$((END - START))
+
+echo "Waiting for disconnection report"
+wait_file_contents ${RADIUSLOG} "Acct-Terminate-Cause" 30
+
+REPORTED=$(cat ${RADIUSLOG}|grep "Acct-Session-Time"|tail -1|sed 's/.*Acct-Session-Time = //g')
+
+if test -z "$REPORTED";then
+	fail $PID "No Acct-Session-Time was reported in the Stop record!"
+fi
+
+echo "Actual elapsed time: ${ACTUAL}s, reported Acct-Session-Time: ${REPORTED}s"
+
+# Allow generous slack for test/connect overhead, but the buggy summation
+# behavior (segment uptimes ~5, ~15, ~25 summed to ~45 for this timeline)
+# is well outside this window, while the correct behavior (~25) is inside.
+MIN_EXPECTED=$((ACTUAL - 5))
+MAX_EXPECTED=$((ACTUAL + 15))
+
+if test "$REPORTED" -lt "$MIN_EXPECTED" || test "$REPORTED" -gt "$MAX_EXPECTED";then
+	fail $PID "FAIL: expected Acct-Session-Time in [${MIN_EXPECTED}, ${MAX_EXPECTED}], got ${REPORTED} (actual elapsed: ${ACTUAL}s)"
+fi
+
+echo "Acct-Session-Time (${REPORTED}s) matches actual elapsed time (${ACTUAL}s)"
+
+# Cross-check: RADIUS's Acct-Session-Time and occtl's raw_session_started_at
+# are both derived from sec-mod's e->created, but reach their consumers via
+# two independent propagation paths (sec-mod -> RADIUS accounting directly,
+# vs. sec-mod -> main -> ctl socket -> occtl). Infer the session start implied
+# by the RADIUS report (END - REPORTED) and confirm it agrees with the start
+# occtl reported directly, so a regression that breaks only one of the two
+# paths (e.g. a future change that stops refreshing proc->session_start_time
+# on reconnect) is caught here even if it doesn't affect Acct-Session-Time.
+INFERRED_START=$((END - REPORTED))
+DRIFT=$((INFERRED_START - SESSION_START))
+if test "$DRIFT" -lt -5 || test "$DRIFT" -gt 5;then
+	fail $PID "FAIL: session start implied by RADIUS Acct-Session-Time (${INFERRED_START}) disagrees with occtl's raw_session_started_at (${SESSION_START}), drift ${DRIFT}s"
+fi
+
+echo "RADIUS-implied session start (${INFERRED_START}) matches occtl's raw_session_started_at (${SESSION_START})"
+
+exit 0
