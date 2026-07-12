@@ -1196,13 +1196,15 @@ family parses), `User-Name`, `Service-Type = Framed`, `Framed-Protocol = PPP`,
 `ipv4`/`ipv6`), `Calling-Station-Id` (`e->acct_info.remote_ip`), and
 `Acct-Session-Id` (`e->acct_info.safe_id`), and `Acct-Authentic = RADIUS`.
 `append_stats()` MUST additionally add (when called, i.e. for Interim-Update
-and Stop) `Acct-Session-Time` (if `stats->uptime != 0`), `Acct-Input-Octets`,
-`Acct-Output-Octets`, `Acct-Input-Gigawords`, and `Acct-Output-Gigawords`
-(the gigawords attributes are always sent, even when `0`, to disambiguate a
-genuinely-zero count from a wrapped 32-bit counter).
+and Stop) `Acct-Session-Time` (if the `uptime` value passed by the caller —
+`ai->uptime`, computed by sec-mod per REQ-AUTH-ACCT-007 — is nonzero),
+`Acct-Input-Octets`, `Acct-Output-Octets`, `Acct-Input-Gigawords`, and
+`Acct-Output-Gigawords` (the gigawords attributes are always sent, even when
+`0`, to disambiguate a genuinely-zero count from a wrapped 32-bit counter).
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/acct/radius.c:92-177 (`append_stats`, `append_acct_standard`)
+**Source:** src/acct/radius.c:91-177 (`append_stats`, `append_acct_standard`);
+src/sec-mod-auth.c:656-660,771-772 (`ai->uptime` computation)
 **Acceptance:** positive, local — with a test RADIUS server logging received
 attributes, open a session and confirm the Start Accounting-Request contains
 `User-Name`, `Acct-Session-Id`, `Service-Type=Framed`,
@@ -1275,6 +1277,45 @@ Accounting-Request traffic against a test RADIUS server; confirm no
 `NAS-Port` (attribute 5) attribute is present in any request. Cross-reference
 `doc/README-radius.md`'s `acct_unique` guidance.
 **Links:** REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-003
+
+### REQ-AUTH-ACCT-007 — Acct-Session-Time is the wall-clock lifetime of the logical session, spanning cookie-resumed reconnects
+
+**Requirement:** `Acct-Session-Time` MUST represent the wall-clock lifetime
+of the logical session — from the initial authentication
+(`e->created`) to the last activity — not the sum of connected time across
+individual TCP/DTLS connections. A single logical session spans all
+reconnections performed under the same cookie (roaming, DTLS rekey, a brief
+link loss, `new-tunnel` rekey), so an idle gap between such reconnections is
+included in `Acct-Session-Time`. sec-mod MUST compute this value directly as
+`now - e->created`, live for each Interim-Update
+(`handle_sec_auth_stats_cmd`) and snapshotted at disconnect for the Stop
+(`handle_secm_session_close_cmd`) so that a session with no worker currently
+attached does not keep accruing time while it lingers within
+`cookie-timeout`. In particular sec-mod MUST NOT derive this value by
+summing per-segment uptimes reported by the worker or main (each such report
+is itself already cumulative since `e->created`, since `session_start_time`
+is not reset across reconnects — summing them inflates the reported value
+roughly linearly with the number of reconnects). The value is bounded above
+by `session-timeout` (enforced on the same quantity, `e->created`), so a
+session that runs its full term reports `Acct-Session-Time` ≈
+`session-timeout`; any idle gap folded in by a reconnect is bounded by
+`cookie-timeout`, since a longer gap expires the cookie and forces a fresh
+authentication, starting a new accounting session with a new SID.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/sec-mod-auth.c:656-660 (Stop snapshot), 771-772 (Interim-Update
+live value); doc/README-radius.md (definition); doc/sample.config (note next
+to `stats-report-time`)
+**Acceptance:** positive, local (`tests/radius-reconnect-acct`) — drive three
+cookie-resumed segments (simulating reconnects via SIGKILL between segments,
+as `tests/test-cookie-timeout` does) with idle gaps in between, then a clean
+final disconnect; confirm the Stop's `Acct-Session-Time` is close to the
+actual elapsed wall-clock time from first connect to final disconnect, not
+the sum of the individual segments' cumulative uptimes (this is also the
+regression test for the summation bug this requirement documents the fix
+for). Negative — the same test's tolerance window excludes the pre-fix
+summed value for a 3-segment timeline.
+**Links:** REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-003, REQ-IPC-032
 
 ## ACCT — PAM accounting (`acct = pam`)
 

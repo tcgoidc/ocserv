@@ -299,19 +299,26 @@ was never opened (or only reached `PS_AUTH_INIT`); confirm sec-mod replies
 with `CMD_SECM_CLI_STATS` and main does not hang waiting for a reply.
 **Links:** REQ-IPC-030
 
-### REQ-IPC-032 — Stats counters are monotonic, taking the maximum
+### REQ-IPC-032 — Byte counters are monotonic, taking the maximum; uptime is not carried over IPC
 
 **Requirement:** On `SECM_SESSION_CLOSE`, sec-mod MUST update
-`e->stats.{uptime,bytes_in,bytes_out}` only if the incoming value is greater
-than the stored value (`>` comparison), never overwriting with a smaller
-number.
+`e->stats.{bytes_in,bytes_out}` only if the incoming value is greater than
+the stored value (`>` comparison), never overwriting with a smaller number.
+`cli_stats_msg` field 4 and `secm_session_close_msg` field 3 (both formerly
+`uptime`) are `reserved` and MUST NOT be repurposed: session uptime is not
+reported by the worker or by main, since it is a pure function of the
+session creation time. Instead, on `SECM_SESSION_CLOSE` sec-mod MUST
+snapshot `e->acct_info.uptime = now - e->created` directly (REQ-AUTH-ACCT-007).
 **Strength:** MUST
 **Status:** DERIVED
-**Source:** src/sec-mod-auth.c:658-666
+**Source:** src/sec-mod-auth.c:656-666; src/ipc.proto:135-145,322-329
+(`reserved` fields)
 **Acceptance:** unit, local — send `SECM_SESSION_CLOSE` twice for the same
-SID, second time with smaller `bytes_in`/`bytes_out`/`uptime`; confirm
-`e->stats` values are unchanged after the second message.
-**Links:** REQ-IPC-031
+SID, second time with a smaller `bytes_in`/`bytes_out`; confirm `e->stats`
+values are unchanged after the second message. Negative — confirm neither
+`cli_stats_msg` nor `secm_session_close_msg` carries a live `uptime` field
+(the reserved field numbers are never reused).
+**Links:** REQ-IPC-031, REQ-AUTH-ACCT-002, REQ-AUTH-ACCT-007
 
 ### REQ-IPC-033 — server_disconnected sets discon_reason
 
