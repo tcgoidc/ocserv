@@ -97,7 +97,7 @@ int cstp_uncork(worker_st *ws)
 
 ssize_t cstp_send(worker_st *ws, const void *data, size_t data_size)
 {
-	int ret;
+	ssize_t ret;
 	int left = data_size;
 	const uint8_t *p = data;
 
@@ -129,8 +129,7 @@ ssize_t cstp_send_file(worker_st *ws, const char *file)
 	int fd;
 	char buf[1024];
 	int counter = 100; /* allow 10 seconds for a full packet */
-	ssize_t len, total = 0;
-	int ret;
+	ssize_t len, total = 0, ret;
 
 	fd = open(file, O_RDONLY);
 	if (fd == -1)
@@ -156,11 +155,11 @@ ssize_t cstp_send_file(worker_st *ws, const char *file)
 	return total;
 }
 
-static int recv_remaining(int fd, uint8_t *p, int left)
+static ssize_t recv_remaining(int fd, uint8_t *p, ssize_t left)
 {
 	int counter = 100; /* allow 10 seconds for a full packet */
-	unsigned int total = 0;
-	int ret;
+	ssize_t total = 0;
+	ssize_t ret;
 
 	while (left > 0) {
 		ret = recv(fd, p, left, 0);
@@ -189,7 +188,7 @@ static int recv_remaining(int fd, uint8_t *p, int left)
  * a proxy. */
 static ssize_t _cstp_recv_packet(worker_st *ws, void *data, size_t data_size)
 {
-	int ret;
+	ssize_t ret;
 
 	/* socket is in non-blocking mode already */
 
@@ -227,7 +226,7 @@ static ssize_t _cstp_recv_packet(worker_st *ws, void *data, size_t data_size)
 
 ssize_t cstp_recv_packet(worker_st *ws, gnutls_datum_t *data, void **p)
 {
-	int ret;
+	ssize_t ret;
 	gnutls_packet_t packet = NULL;
 
 	if (ws->session != NULL) {
@@ -248,7 +247,7 @@ ssize_t cstp_recv_packet(worker_st *ws, gnutls_datum_t *data, void **p)
 /* Restores gnutls_record_recv() on EAGAIN */
 ssize_t cstp_recv(worker_st *ws, void *data, size_t data_size)
 {
-	int ret;
+	ssize_t ret;
 	int counter = 5;
 
 	if (ws->session != NULL) {
@@ -342,7 +341,7 @@ void cstp_fatal_close(worker_st *ws, gnutls_alert_description_t a)
 
 ssize_t dtls_recv_packet(struct dtls_st *dtls, gnutls_datum_t *data, void **p)
 {
-	int ret;
+	ssize_t ret;
 	gnutls_packet_t packet = NULL;
 
 	ret = gnutls_record_recv_packet(dtls->dtls_session, &packet);
@@ -358,7 +357,7 @@ ssize_t dtls_recv_packet(struct dtls_st *dtls, gnutls_datum_t *data, void **p)
 
 ssize_t dtls_send(struct dtls_st *dtls, const void *data, size_t data_size)
 {
-	int ret;
+	ssize_t ret;
 	int left = data_size;
 	const uint8_t *p = data;
 
