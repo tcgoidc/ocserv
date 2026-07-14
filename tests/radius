@@ -204,4 +204,38 @@ if test -z "$OCTETS" || test "$OCTETS" = 0;then
 fi
 echo "Transferred ${OCTETS} bytes"
 
+# REQ-AUTH-AUTH-025: the session id must be sent as Acct-Session-Id already in
+# the Access-Request, using the same value that later appears in the
+# Accounting-Request so the two exchanges correlate.
+echo " * Verifying Acct-Session-Id is sent during authentication..."
+
+# Session id reported by the accounting exchange of the connected session.
+ACCT_SID=$(awk '
+	/Received Accounting-Request/ { in_acct=1 }
+	/Received Access-Request/ { in_acct=0 }
+	in_acct && /Acct-Session-Id/ {
+		v=$0; sub(/.*Acct-Session-Id = /, "", v); gsub(/"/, "", v); last=v
+	}
+	END { print last }' "${RADIUSLOG}")
+
+if test -z "${ACCT_SID}";then
+	cat ${RADIUSLOG}
+	echo "No Acct-Session-Id present in the Accounting-Request!"
+	exit 1
+fi
+
+# The same identifier must have been present in an Access-Request.
+FOUND=$(awk -v sid="${ACCT_SID}" '
+	/Received Access-Request/ { in_access=1 }
+	/Received Accounting-Request/ { in_access=0 }
+	in_access && /Acct-Session-Id/ && index($0, sid) { print "yes"; exit }
+	' "${RADIUSLOG}")
+
+if test "${FOUND}" != "yes";then
+	cat ${RADIUSLOG}
+	echo "Acct-Session-Id ${ACCT_SID} was not sent in any Access-Request!"
+	exit 1
+fi
+echo "Acct-Session-Id ${ACCT_SID} present in both Access-Request and Accounting-Request"
+
 exit 0

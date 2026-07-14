@@ -734,18 +734,31 @@ containing: `User-Name` (REQ-AUTH-AUTH-024), `User-Password` (the submitted
 password), `NAS-IP-Address` or `NAS-IPv6-Address` (from `e->our_ip`, whichever
 family applies), `NAS-Identifier` if `nas-identifier=` is configured
 (REQ-AUTH-AUTH-022), `Calling-Station-Id` (the client's `remote_ip`),
-`Connect-Info` (the client's User-Agent string), `Service-Type =
+`Connect-Info` (the client's User-Agent string), `Acct-Session-Id` (the
+session identifier, when available — see below), `Service-Type =
 Authenticate-Only`, `NAS-Port-Type = Async`, and — when continuing a
 challenge (REQ-AUTH-AUTH-027) — the `State` attribute echoed back from the
 prior `Access-Challenge`.
+
+The `Acct-Session-Id` carries the same session identifier
+(`acct_info.safe_id`) that is later sent in the Accounting-Request packets
+(REQ-AUTH-ACCT-*). RFC 2866 (section 5.5) allows an Access-Request to carry
+`Acct-Session-Id` ("An Access-Request packet MAY have an Acct-Session-Id"),
+and requires that if it does, the NAS MUST use the same value in the
+Accounting-Request packets for that session — so the two exchanges correlate
+on one key. Emitting it during authentication gives the RADIUS server a
+per-session key already at Access-Request time (e.g. for `rlm_ippool`, so
+concurrent sessions of the same user from the same client do not collide on a
+single IP lease).
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/auth/radius.c:293-430 (request construction, before
 `rc_auth()`/`rc_send_server()`)
 **Acceptance:** unit, local — capture the RADIUS request (e.g. via a test
 FreeRADIUS server with `auth_log`) for a normal login; confirm all listed
-attributes are present with expected values, and that a configured
-`nas-identifier` appears as `NAS-Identifier`.
+attributes are present with expected values, that a configured
+`nas-identifier` appears as `NAS-Identifier`, and that `Acct-Session-Id` is
+present and equals the session id reported in the matching Accounting-Request.
 **Links:** REQ-AUTH-AUTH-024, REQ-AUTH-AUTH-026, REQ-AUTH-AUTH-027
 
 ### REQ-AUTH-AUTH-026 — `Access-Accept` attributes populate group membership and per-session network configuration

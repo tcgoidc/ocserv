@@ -1,4 +1,5 @@
 * Version 1.5.1 (unreleased)
+- Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
 - Hardened per-user/group configuration file lookup against path-traversal;
   a malformed per-user/group or default configuration file now causes the
   affected session to be rejected rather than silently ignored. A configured
