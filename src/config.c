@@ -974,11 +974,32 @@ static int cfg_ini_handler(void *_ctx, const char *section, const char *name,
 			return 1;
 		}
 
+		/* A section name that filled inih's buffer was truncated by it.
+		 * Accepting a truncated vhost name would register a host that
+		 * no client can ever select, and would merge two hosts sharing
+		 * a long prefix into one. */
+		if (strlen(section) >= INI_MAX_SECTION - 1) {
+			fprintf(stderr,
+				ERRSTR
+				"virtual host name is too long (truncated): '%s'\n",
+				section + 6);
+			return 0;
+		}
+
 		vname = sanitize_name(ctx->pool, section + 6);
 		if (vname == NULL || vname[0] == 0) {
 			fprintf(stderr,
 				ERRSTR "virtual host name is illegal '%s'\n",
 				section + 6);
+			return 0;
+		}
+
+		if (strlen(vname) > MAX_VHOST_NAME_LEN) {
+			fprintf(stderr,
+				ERRSTR
+				"virtual host name is too long (max %d): '%s'\n",
+				MAX_VHOST_NAME_LEN, vname);
+			talloc_free(vname);
 			return 0;
 		}
 

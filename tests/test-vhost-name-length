@@ -1,0 +1,181 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Katie Hudson
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GnuTLS; if not, write to the Free Software Foundation,
+# Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+NO_NEED_ROOT=1
+OUTFILE=$(mktemp)
+
+. `dirname $0`/common.sh
+
+eval "${GETPORT}"
+
+echo "Testing virtual host name length handling at config load... "
+
+function finish {
+  set +e
+  test -n "${CONFIG}" && rm -f ${CONFIG} >/dev/null 2>&1
+  rm -f $OUTFILE >/dev/null 2>&1
+}
+trap finish EXIT
+
+# Repeat a character N times, without relying on seq or brace expansion.
+repeat() {
+	head -c "$2" < /dev/zero | tr '\0' "$1"
+}
+
+# The historical failure: inih truncated a section name to 50 bytes, of
+# which "vhost:" took six. Names sharing their first 43 characters became
+# the same vhost, and any longer name was cut short and could never match
+# the hostname a client sends in SNI.
+NAME_COM="vpn-gateway.engineering.department.example.com"
+NAME_NET="vpn-gateway.engineering.department.example.net"
+CUT="vpn-gateway.engineering.department.example."
+
+# The longest name that must be accepted, and the shortest that must not.
+# A name that fits must survive whatever the parser's section buffer is,
+# so this is what pins the buffer size to the documented limit.
+MAX_NAME="$(repeat a 241).example.com"
+OVER_NAME="$(repeat a 242).example.com"
+
+# Long enough to overflow the parser's section buffer outright.
+HUGE_NAME="$(repeat a 588).example.com"
+
+# ---------------------------------------------------------------------
+# A name longer than the historical 43-character budget must be kept
+# whole, and must not appear cut short.
+# ---------------------------------------------------------------------
+update_config test1.config
+echo "[vhost:${NAME_COM}]" >>${CONFIG}
+echo 'banner = "vhost banner"' >>${CONFIG}
+
+${SERV} -d 1 -c ${CONFIG} -t >${OUTFILE} 2>&1
+if test $? != 0; then
+	echo "FAIL: a ${#NAME_COM}-character virtual host name was rejected"
+	echo "==================================================="
+	cat $OUTFILE
+	exit 1
+fi
+
+grep -q "adding virtual host: ${NAME_COM}$" $OUTFILE
+if test $? != 0; then
+	echo "FAIL: expected virtual host '${NAME_COM}' to be added in full"
+	echo "==================================================="
+	cat $OUTFILE
+	exit 1
+fi
+
+grep -q "adding virtual host: ${CUT}$" $OUTFILE
+if test $? = 0; then
+	echo "FAIL: virtual host name was truncated to '${CUT}'"
+	echo "==================================================="
+	cat $OUTFILE
+	exit 1
+fi
+
+echo " * OK: a ${#NAME_COM}-character virtual host name is kept whole"
+
+# ---------------------------------------------------------------------
+# Two names sharing their first 43 characters must stay separate hosts.
+# ---------------------------------------------------------------------
+update_config test1.config
+echo "[vhost:${NAME_COM}]" >>${CONFIG}
+echo 'banner = "com banner"' >>${CONFIG}
+echo "[vhost:${NAME_NET}]" >>${CONFIG}
+echo 'banner = "net banner"' >>${CONFIG}
+
+${SERV} -d 1 -c ${CONFIG} -t >${OUTFILE} 2>&1
+if test $? != 0; then
+	echo "FAIL: two virtual hosts sharing a long prefix were rejected"
+	echo "==================================================="
+	cat $OUTFILE
+	exit 1
+fi
+
+for name in "${NAME_COM}" "${NAME_NET}"; do
+	grep -q "adding virtual host: ${name}$" $OUTFILE
+	if test $? != 0; then
+		echo "FAIL: '${name}' was not added as its own virtual host;"
+		echo "      hosts sharing a 43-character prefix collapsed into one"
+		echo "==================================================="
+		cat $OUTFILE
+		exit 1
+	fi
+done
+
+echo " * OK: names sharing a 43-character prefix remain separate hosts"
+
+# ---------------------------------------------------------------------
+# A name at the documented maximum must be accepted. This is what keeps
+# the parser's section buffer large enough to hold one.
+# ---------------------------------------------------------------------
+update_config test1.config
+echo "[vhost:${MAX_NAME}]" >>${CONFIG}
+echo 'banner = "max length banner"' >>${CONFIG}
+
+${SERV} -d 1 -c ${CONFIG} -t >${OUTFILE} 2>&1
+if test $? != 0; then
+	echo "FAIL: a ${#MAX_NAME}-character name was rejected; the parser's"
+	echo "      section buffer is too small to hold a legal name"
+	echo "==================================================="
+	cat $OUTFILE
+	exit 1
+fi
+
+grep -q "adding virtual host: ${MAX_NAME}$" $OUTFILE
+if test $? != 0; then
+	echo "FAIL: a ${#MAX_NAME}-character name was not added in full"
+	echo "==================================================="
+	cat $OUTFILE
+	exit 1
+fi
+
+echo " * OK: a ${#MAX_NAME}-character virtual host name is accepted"
+
+# ---------------------------------------------------------------------
+# Anything longer must be refused outright rather than shortened.
+# ---------------------------------------------------------------------
+for name in "${OVER_NAME}" "${HUGE_NAME}"; do
+	update_config test1.config
+	echo "[vhost:${name}]" >>${CONFIG}
+	echo 'banner = "too long"' >>${CONFIG}
+
+	${SERV} -d 1 -c ${CONFIG} -t >${OUTFILE} 2>&1
+	if test $? = 0; then
+		echo "FAIL: a ${#name}-character virtual host name was accepted;"
+		echo "      expected the configuration to be rejected"
+		echo "==================================================="
+		cat $OUTFILE
+		exit 1
+	fi
+
+	grep -q "virtual host name is too long" $OUTFILE
+	if test $? != 0; then
+		echo "FAIL: a ${#name}-character name was rejected without"
+		echo "      reporting that the name is too long"
+		echo "==================================================="
+		cat $OUTFILE
+		exit 1
+	fi
+
+	echo " * OK: a ${#name}-character virtual host name is rejected"
+done
+
+exit 0

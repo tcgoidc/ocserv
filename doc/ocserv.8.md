@@ -148,6 +148,10 @@ of the form:
 All options that follow (until the next section header or end of file) apply
 only to that virtual host.
 
+The name may be up to 253 characters long, the maximum length of a domain
+name. A longer name is rejected as a configuration error rather than shortened,
+since a shortened name would never match the domain a client requests.
+
 ## AUTHENTICATION
 Users can be authenticated in multiple ways, which are explained in the following
 paragraphs. Connected users can be managed using the _occtl_ tool.

@@ -376,6 +376,7 @@ endforeach
 cdata.set('INI_STOP_ON_FIRST_ERROR',  1)
 cdata.set('INI_ALLOW_MULTILINE',      1)
 cdata.set('INI_MAX_LINE',             2048)
+cdata.set('INI_MAX_SECTION',          512)
 cdata.set_quoted('INI_INLINE_COMMENT_PREFIXES', '#')
 
 # Paths / strings

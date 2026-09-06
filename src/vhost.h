@@ -26,6 +26,11 @@
 #include "tlslib.h"
 #include "cfg.pb-c.h"
 
+/* Longest accepted [vhost:NAME] name, excluding the NUL terminator. A vhost
+ * name is matched against the hostname a client sends in SNI, so the DNS
+ * maximum is the useful bound. */
+#define MAX_VHOST_NAME_LEN 253
+
 #define MAX_PIN_SIZE GNUTLS_PKCS11_MAX_PIN_LEN
 typedef struct pin_st {
 	char pin[MAX_PIN_SIZE];

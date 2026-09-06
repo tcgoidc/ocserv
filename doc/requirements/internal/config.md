@@ -12,6 +12,7 @@ sources:
   - src/cfg.proto
   - src/vpn.h
   - src/vhost.h
+  - src/inih/ini.h
   - doc/sample.config
   - tests/check-config-scope.py
   - tests/config-inherit.c
@@ -48,7 +49,8 @@ a `skipping unknown section` warning (non-fatal, line ignored) unless
 `reload` or `is_worker` is set (in which case the warning is suppressed).
 Virtual host names are canonicalized via `sanitize_name()`/`idna_map()`; a
 canonicalization that changes the name MUST print a `note:` (suppressed
-under reload/worker).
+under reload/worker). Name-length bounds, and rejection of names the parser
+could not represent in full, are specified in REQ-CONFIG-INIT-003.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/config.c:943-1030 (`cfg_ini_handler`), src/vhost.h:115-122
@@ -59,7 +61,7 @@ and no other vhost sections MUST produce exactly two `vhost_cfg_st` entries
 one, `find_vhost(head, NULL)` and `find_vhost(head, "unknown")` MUST both
 return the default. Negative: a config containing `[bogus]` MUST NOT abort
 parsing (line ignored, warning printed on first parse only).
-**Links:** REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003
+**Links:** REQ-CONFIG-INIT-003, REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003
 
 ### REQ-CONFIG-INIT-002 — Two-tier per-vhost config: `ReloadableConfig` (SIGHUP-reloadable) vs `static_cfg_st` (restart-only)
 
@@ -83,6 +85,58 @@ its inheritance behavior in `vhost_inherit_static_config()`.
 `GETRCONFIG`/`GETSCONFIG` — `[OPEN]`, not run in this pass; recommended as a
 lint/CI check given how easy it is to reintroduce direct access after #705.
 **Links:** REQ-CONFIG-CFG-001, REQ-CONFIG-CFG-002, REQ-CONFIG-CFG-003
+
+### REQ-CONFIG-INIT-003 — `[vhost:NAME]` names are bounded by `MAX_VHOST_NAME_LEN` and MUST NOT be silently truncated
+
+**Requirement:** A virtual host name of up to `MAX_VHOST_NAME_LEN` (253, the
+DNS maximum) characters MUST be stored by `vhost_add()` and matched by
+`find_vhost()` in full. `cfg_ini_handler()` MUST reject, as a fatal
+configuration error (handler returns 0, which under
+`INI_STOP_ON_FIRST_ERROR` aborts `ini_parse()` and makes
+`parse_cfg_file()`/`reload_cfg_file()` fail per REQ-CONFIG-ERR-001), any
+`vhost:` section header that the parser could not represent in full — either
+because it filled `inih`'s section buffer
+(`strlen(section) >= INI_MAX_SECTION - 1`, which means `ini_strncpy0()`
+truncated it) or because the canonicalized virtual host name exceeds
+`MAX_VHOST_NAME_LEN`. This check MUST apply only after the `vhost:` prefix
+test, so that an over-long *unknown* section is still skipped with a warning
+per REQ-CONFIG-INIT-001 rather than made fatal. `INI_MAX_SECTION` MUST be
+large enough to hold `"vhost:"`, a maximum-length name, and the NUL
+terminator, so that no legal name can reach the truncation path. That bound
+cannot be asserted from `config.c`, which sees only the value in `config.h`
+and not the array actually declared in `ini.c`; it is enforced behaviourally
+instead, by requiring a maximum-length name to parse successfully.
+
+The rationale is that a truncated name is not a cosmetic defect: the stored
+name is what client SNI is matched against
+(`find_vhost(ws->vconfig, ws->buffer)` in `worker-vpn.c`), and `find_vhost()`
+falls back to the **default vhost** on no match. A truncated name therefore
+means the administrator's virtual host configuration — its certificate,
+authentication methods and network settings — silently never takes effect,
+and every client for that host is served by the default vhost instead. Two
+distinct virtual hosts whose names share a long common prefix MUST NOT
+collapse into a single `vhost_cfg_st`, which is what the existing name-match
+in `cfg_ini_handler()` would otherwise do once both names truncate to the
+same string.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/config.c:972-1004 (`cfg_ini_handler` name checks),
+src/vhost.h:32 (`MAX_VHOST_NAME_LEN`),
+src/vhost.h:141-157 (`find_vhost`), src/inih/ini.h:144-155
+(`INI_MAX_SECTION`), src/inih/ini.c:90-98, 112 (`ini_strncpy0`, section
+buffer), src/worker-vpn.c:742 (SNI-based vhost selection)
+**Acceptance:** tests/test-vhost-name-length — positive/negative ; local,
+CI. Driven through `ocserv -t`, so it exercises the real parser rather than
+any internal entry point, and therefore also detects a regression introduced
+by re-vendoring `src/inih`. Positive: a name longer than the historical
+43-character budget MUST be reported as added in full and MUST NOT appear
+truncated; two names sharing a 43-character prefix MUST each be added as
+their own vhost; a name of exactly `MAX_VHOST_NAME_LEN` characters MUST be
+accepted, which is what pins `INI_MAX_SECTION` above the legal maximum.
+Negative: a name of `MAX_VHOST_NAME_LEN + 1` characters, and one long enough
+to overflow the section buffer, MUST both make `ocserv -t` exit non-zero and
+report that the name is too long.
+**Links:** REQ-CONFIG-INIT-001, REQ-CONFIG-ERR-001
 
 ---
 
