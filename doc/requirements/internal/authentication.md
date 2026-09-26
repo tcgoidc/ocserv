@@ -1153,6 +1153,26 @@ name is rejected or ignored at config time for an OIDC-only vhost (no
 invalid tokens add `ban_points_wrong_password` twice (REQ-AUTH-AUTH-003).
 **Links:** REQ-AUTH-AUTH-003, REQ-AUTH-AUTH-006, REQ-AUTH-AUTH-038
 
+### REQ-AUTH-AUTH-042 — PAM credentials do not outlive the PAM context
+
+**Requirement:** `pam_auth_pass()` MUST erase the complete `pctx->password`
+buffer immediately after the PAM conversation coroutine returns, on the
+success, failure, and continuation paths alike. `pam_auth_deinit()` MUST erase
+both `pctx->password` and `pctx->username` before releasing the PAM
+authentication context, including a context abandoned while waiting for a
+password. Erasure MUST use `safe_memset()` so the compiler cannot optimize it
+away.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/auth/pam.c (`pam_auth_pass`, `pam_auth_deinit`)
+**Acceptance:** [SEC] code-review — confirm that `pam_auth_pass()` calls
+`safe_memset()` over the full `pctx->password` buffer immediately after
+`co_call()` returns, before any early return, and that `pam_auth_deinit()`
+erases both `pctx->password` and `pctx->username` before `pam_end()`. Buffer
+erasure is not externally observable, so no runtime test is required; a test
+that inspects `struct pam_ctx_st` would violate REQ-GEN-TEST-002.
+**Links:** REQ-AUTH-AUTH-018, REQ-AUTH-AUTH-019, REQ-AUTH-AUTH-020
+
 ## ACCT — accounting method selection
 
 ### REQ-AUTH-ACCT-001 — `acct=` selects exactly one of `radius`/`pam`, compatible with the configured `auth=` type

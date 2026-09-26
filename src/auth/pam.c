@@ -56,6 +56,12 @@ enum {
 	PAM_S_COMPLETE,
 };
 
+static void pam_clear_credentials(struct pam_ctx_st *pctx)
+{
+	safe_memset(pctx->password, 0, sizeof(pctx->password));
+	safe_memset(pctx->username, 0, sizeof(pctx->username));
+}
+
 static void pam_vhost_init(void **vctx, void *pool, void *additional)
 {
 	struct pam_cfg_st *config = additional;
@@ -336,6 +342,7 @@ static int pam_auth_pass(void *ctx, const char *pass, unsigned int pass_len)
 
 	pctx->cr_ret = PAM_CONV_ERR;
 	co_call(pctx->cr);
+	safe_memset(pctx->password, 0, sizeof(pctx->password));
 
 	if (pctx->cr_ret != PAM_SUCCESS) {
 		oc_syslog(LOG_NOTICE, "PAM-auth pam_auth_pass: %s",
@@ -393,6 +400,7 @@ static void pam_auth_deinit(void *ctx)
 		co_call(pctx->cr);
 	}
 
+	pam_clear_credentials(pctx);
 	pam_end(pctx->ph, pctx->cr_ret);
 	free(pctx->replies);
 	str_clear(&pctx->msg);
