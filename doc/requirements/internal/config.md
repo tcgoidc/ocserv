@@ -92,8 +92,9 @@ lint/CI check given how easy it is to reintroduce direct access after #705.
 DNS maximum) characters MUST be stored by `vhost_add()` and matched by
 `find_vhost()` in full. `cfg_ini_handler()` MUST reject, as a fatal
 configuration error (handler returns 0, which under
-`INI_STOP_ON_FIRST_ERROR` aborts `ini_parse()` and makes
-`parse_cfg_file()`/`reload_cfg_file()` fail per REQ-CONFIG-ERR-001), any
+`INI_STOP_ON_FIRST_ERROR` aborts `ini_parse()`; `parse_cfg_file()`, which
+`reload_cfg_file()` also calls, then prints `config file error in line N`
+via `CONFIG_ERROR` and exits with `EXIT_FAILURE`), any
 `vhost:` section header that the parser could not represent in full — either
 because it filled `inih`'s section buffer
 (`strlen(section) >= INI_MAX_SECTION - 1`, which means `ini_strncpy0()`
@@ -124,7 +125,9 @@ same string.
 src/vhost.h:32 (`MAX_VHOST_NAME_LEN`),
 src/vhost.h:141-157 (`find_vhost`), src/inih/ini.h:144-155
 (`INI_MAX_SECTION`), src/inih/ini.c:90-98, 112 (`ini_strncpy0`, section
-buffer), src/worker-vpn.c:742 (SNI-based vhost selection)
+buffer), src/config.c:1597-1714 (`parse_cfg_file`, `ini_parse()` failure
+→ `CONFIG_ERROR` + `exit(EXIT_FAILURE)`), src/worker-vpn.c:742 (SNI-based
+vhost selection)
 **Acceptance:** tests/test-vhost-name-length — positive/negative ; local,
 CI. Driven through `ocserv -t`, so it exercises the real parser rather than
 any internal entry point, and therefore also detects a regression introduced
@@ -136,7 +139,7 @@ accepted, which is what pins `INI_MAX_SECTION` above the legal maximum.
 Negative: a name of `MAX_VHOST_NAME_LEN + 1` characters, and one long enough
 to overflow the section buffer, MUST both make `ocserv -t` exit non-zero and
 report that the name is too long.
-**Links:** REQ-CONFIG-INIT-001, REQ-CONFIG-ERR-001
+**Links:** REQ-CONFIG-INIT-001
 
 ---
 

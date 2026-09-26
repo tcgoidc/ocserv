@@ -12,6 +12,10 @@
 - On TLS 1.3 CSTP sessions, rekey-method = ssl now performs a transparent
   TLS 1.3 KeyUpdate server-side instead of silently falling back to a full
   tunnel rebuild on every rekey (#745)
+- Virtual host names longer than 43 characters are no longer silently
+  truncated; such a [vhost:NAME] previously never matched the client's SNI
+  and its clients were served by the default virtual host. Names may now be
+  up to 253 characters (#759)
 - sec-mod now sends a best-effort RADIUS Accounting-Stop for every open
   session when shutting down (#643)
 - Simplified the radius backend by standardizing in radcli and removing
