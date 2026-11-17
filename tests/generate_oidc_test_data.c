@@ -103,9 +103,10 @@ json_t *create_keys(cjose_jwk_t *key)
 	json_t *keys_array = json_array();
 	json_t *key_json;
 
-	const char *key_str = cjose_jwk_to_json(key, false, &err);
+	char *key_str = cjose_jwk_to_json(key, false, &err);
 
 	key_json = json_loads(key_str, 0, NULL);
+	cjose_get_dealloc()(key_str);
 	json_array_append_new(keys_array, key_json);
 	json_object_set_new(keys_json, "keys", keys_array);
 	return keys_json;
@@ -188,7 +189,7 @@ static void write_private_key(const char *output_folder, cjose_jwk_t *key)
 {
 	cjose_err err;
 	char key_file[1024];
-	const char *key_str;
+	char *key_str;
 	FILE *f;
 
 	snprintf(key_file, sizeof(key_file), "%s/oidc-key.json", output_folder);
@@ -206,6 +207,7 @@ static void write_private_key(const char *output_folder, cjose_jwk_t *key)
 
 	fprintf(f, "%s", key_str);
 	fclose(f);
+	cjose_get_dealloc()(key_str);
 }
 
 static cjose_jwk_t *load_private_key(const char *folder)
@@ -475,5 +477,6 @@ int main(int argc, char **argv)
 		       audience, issuer, user_name, now - 60, 0, now + 3600);
 	generate_token(working_directory, "fail_missing_exp", key, typ, alg,
 		       kid, audience, issuer, user_name, now - 60, now - 60, 0);
+	cjose_jwk_release(key);
 	return 0;
 }
