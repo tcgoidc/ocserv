@@ -348,7 +348,7 @@ if get_option('root-tests')
     'test-config-per-group-url-cert', 'test-multiple-client-ip',
     'terminate-user-multi-secmod', 'test-occtl-fd-inherit',
     'test-rekey-tls13', 'test-rekey-tls12', 'test-listen-mptcp',
-    'test-listen-mptcp-fallback',
+    'test-listen-mptcp-fallback', 'test-listen-families',
   ]
 
   foreach s : root_scripts

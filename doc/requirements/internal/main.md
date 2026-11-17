@@ -242,12 +242,14 @@ listener can be opened, main MUST exit with an error.
 **Status:** DERIVED
 **Source:** src/main.c (`listen_ports()`, `_listen_ports()`); getaddrinfo(3)
 (`AI_PASSIVE`, `AI_ADDRCONFIG`); RFC 3493 section 6.1
-**Acceptance:** positive, local, manual (root, a network namespace with `lo`
-up and one dummy interface that carries only an IPv6 address, added with
-`nodad` and `addrgenmode none`) — the server started without `listen-host`
-has a TCP and a UDP listener on `0.0.0.0` and on `[::]` (`ss -ltn`,
-`ss -lun`), and with `listen-host = 127.0.0.3` it listens on that address
-only.
+**Acceptance:** `tests/test-listen-families` — CI (root), in a network
+namespace with one dummy interface that carries a single address family.
+Positive: with only an IPv6 address, and with only an IPv4 address, the
+server started without `listen-host` has a TCP and a UDP listener on
+`0.0.0.0` and on `[::]`; with only an IPv6 address and
+`listen-host = 127.0.0.2` it listens on that address alone. Negative: with
+a `listen-host` that is not an address of the host the server exits with
+"Could not listen to any TCP ports".
 **Links:** REQ-MAIN-INIT-007, REQ-MAIN-INIT-008
 
 ---
