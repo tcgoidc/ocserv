@@ -65,7 +65,6 @@ opt_gssapi  = get_option('gssapi')
 opt_liboath = get_option('liboath')
 opt_libnl   = get_option('libnl')
 opt_maxmind = get_option('maxmind')
-opt_geoip   = get_option('geoip')
 opt_lz4     = get_option('lz4')
 opt_seccomp = get_option('seccomp')
 opt_systemd = get_option('systemd')
@@ -153,15 +152,11 @@ if not opt_libnl.disabled()
     required: opt_libnl)
 endif
 
-# GeoIP: maxmind first, geoip as fallback
+# GeoIP: the 'geoip' option (libGeoIP) is accepted and ignored
 maxmind_dep = dependency('', required: false)
-geoip_dep   = dependency('', required: false)
 if not opt_maxmind.disabled()
   maxmind_dep = dependency('libmaxminddb', version: '>= 1.0.0',
     required: opt_maxmind)
-endif
-if not maxmind_dep.found() and not opt_geoip.disabled()
-  geoip_dep = dependency('geoip', version: '>= 1.6.0', required: opt_geoip)
 endif
 
 # readline / libedit
@@ -335,7 +330,6 @@ cdata.set('ENABLE_ADAPTIVE_RATE_LIMIT_SUPPORT', adaptive_rate)
 cdata.set('ENABLE_COMPRESSION',               compression_enabled)
 cdata.set('GNUTLS_BROKEN_CERTIFICATE_SET_KEY', broken_cert)
 cdata.set('HAVE_CWRAP',                       have_cwrap)
-cdata.set('HAVE_GEOIP',                       geoip_dep.found())
 cdata.set('HAVE_GSSAPI',                      gssapi_dep.found())
 cdata.set('HAVE_LIBNL',                       libnl_dep.found())
 cdata.set('HAVE_LIBOATH',                     oath_dep.found())

@@ -28,6 +28,15 @@
   no longer replaces long values with "(invalid)".
 - occtl gives up after 10 seconds on a server that does not reply, rejects
   over-long user names locally, and no longer crashes on unexpected replies.
+- occtl no longer supports libGeoIP, whose databases are no longer
+  published; the location lookup uses libmaxminddb only, and the meson
+  option 'geoip' is ignored. The meson options 'maxminddb_location_country'
+  and 'maxminddb_location_city' set the database paths; by default they
+  are detected at build time in /usr/share/GeoIP, preferring the DB-IP
+  Lite databases (dbip-country-lite.mmdb, dbip-city-lite.mmdb) over the
+  GeoLite2 ones, and using the DB-IP Lite names when neither is present. The location now includes the city, and falls back to the
+  represented or registered country of addresses that have no country
+  (e.g. anycast or satellite networks).
 - An option set in a virtual host now replaces the value from the top-level
   configuration, also for options that can be given multiple times (route,
   no-route, dns, nbns, split-dns, custom-header, included-http-headers) and

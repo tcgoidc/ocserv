@@ -15,7 +15,6 @@ sources:
   - src/occtl/session-cache.c
   - src/occtl/ip-cache.c
   - src/occtl/nl.c
-  - src/occtl/geoip.c
   - src/occtl/maxmind.c
   - src/occtl/meson.build
   - meson.build (readline_dep)
@@ -81,7 +80,7 @@ Command-line options (`src/occtl/occtl.c` `main()`): `-s/--socket-file`,
 `-j/--json`, `-n/--no-pager`, `--debug`, `-v/--version`, `-h/--help`
 (CLI-001). Environment: `OCCTL_PAGER`, `PAGER`, `LESS` (CFG-002). Build
 options: `-Dpager` (default pager), `-Dlibnl` (interface statistics),
-maxmind/GeoIP (location lookup); occtl is not built without readline/libedit
+`-Dmaxmind` (location lookup, COMPAT-002); occtl is not built without readline/libedit
 (REQ-OCCTL-COMPAT-001)
 (`src/occtl/meson.build`).
 
@@ -113,6 +112,54 @@ installs libedit's, fails unless `config.h` shows a libedit build
 `#ifndef HAVE_ORIG_READLINE`. The other build jobs build occtl against GNU
 readline.
 **Links:** REQ-GEN-COMPAT-001, REQ-OCCTL-CLI-010
+
+### REQ-OCCTL-COMPAT-002 — occtl's location lookup uses libmaxminddb only
+
+**Requirement:** occtl MUST look up locations with libmaxminddb when the
+build finds it (meson option `maxmind`), and MUST otherwise build without a
+location lookup, reporting every location as `unknown`. libGeoIP, whose
+databases are no longer published, MUST NOT be supported; the meson option
+`geoip` MUST still be accepted and ignored, so that existing build commands
+keep working.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** `meson_options.txt` (`maxmind`, `geoip`); `meson.build`
+(`maxmind_dep`, `HAVE_MAXMIND`); `src/occtl/meson.build`;
+src/occtl/maxmind.c `geo_lookup()` (stub without `HAVE_MAXMIND`)
+**Acceptance:** CI — the `minimal` jobs (`-Dmaxmind=disabled`) build
+occtl without libmaxminddb. Positive — `tests/geo-lookup`
+(REQ-OCCTL-CLI-012) in builds with libmaxminddb. Local — `meson setup`
+with `-Dgeoip=enabled` configures without error.
+**Links:** REQ-OCCTL-CLI-012, REQ-OCCTL-COMPAT-003
+
+### REQ-OCCTL-COMPAT-003 — Location database paths
+
+**Requirement:** occtl MUST read the Country and City databases from the
+paths set at build time by the meson options `maxminddb_location_country`
+and `maxminddb_location_city`, which set the macros
+`MAXMINDDB_LOCATION_COUNTRY` and `MAXMINDDB_LOCATION_CITY` (also accepted
+directly, e.g. in `c_args`, when the meson options are not used). With the
+value `auto` (the default), the build MUST use, for each database, the
+first of the DB-IP Lite (`/usr/share/GeoIP/dbip-country-lite.mmdb`,
+`/usr/share/GeoIP/dbip-city-lite.mmdb`) and the GeoLite2
+(`/usr/share/GeoIP/GeoLite2-Country.mmdb`,
+`/usr/share/GeoIP/GeoLite2-City.mmdb`) files that exists on the build
+system, and the DB-IP Lite path when neither exists. DB-IP Lite is
+preferred because its packaged copies are kept up to date, unlike the
+freely distributed GeoLite2 ones. Any other value MUST be used as the path.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/occtl/maxmind.c (`MAXMINDDB_LOCATION_*`);
+`meson_options.txt`, `src/occtl/meson.build` (`maxminddb_location_*`,
+`geo_candidates`)
+**Acceptance:** positive — `tests/geo-lookup` reads the databases its
+macros set (REQ-OCCTL-CLI-012). Local — `meson setup` prints the
+detected path of each database (`occtl country database: ...`): the
+DB-IP Lite path when both or neither file is installed, the GeoLite2 path
+when only it is. Negative — a build with
+`-Dmaxminddb_location_city=/nonexistent` prints locations without city
+and coordinates.
+**Links:** REQ-OCCTL-COMPAT-002, REQ-OCCTL-CLI-012
 
 ---
 
@@ -850,18 +897,17 @@ Linux only), DPD/keepalive, hostname, connect and session-start times,
 short session ID (and full session ID in JSON), TLS/DTLS ciphersuites and
 compression, DNS, NBNS, split-DNS domains, routes (`defaultroute` when
 none), no-routes, iroutes, route restriction and restricted ports, and a
-GeoIP location (`unknown` when no database).
+location (REQ-OCCTL-CLI-012).
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/main-ctl-unix.c `single_info_common()`,
 `method_user_info()`, `method_id_info()`; src/occtl/unix.c
 `common_info_cmd()`, `handle_show_user_cmd()`, `handle_show_id_cmd()`;
-src/occtl/nl.c `print_iface_stats()`; src/occtl/maxmind.c,
-src/occtl/geoip.c `geo_lookup()`
+src/occtl/nl.c `print_iface_stats()`; src/occtl/maxmind.c `geo_lookup()`
 **Acceptance:** positive, CI — `tests/test-occtl-commands` Section 5,
 `tests/json` (`--json show user`), `tests/test-year-2038` (`show user`).
 Negative — `show user` for an absent user: REQ-OCCTL-ERR-002.
-**Links:** REQ-OCCTL-ERR-002, REQ-OCCTL-CLI-009
+**Links:** REQ-OCCTL-ERR-002, REQ-OCCTL-CLI-009, REQ-OCCTL-CLI-012
 
 ### REQ-OCCTL-CLI-008 — stop requests an orderly SIGTERM shutdown
 
@@ -955,6 +1001,40 @@ the occtl tests (`tests/test-occtl`, `tests/test-occtl-commands`,
 `tests/terminate-commands`, `tests/json`) are run unmodified against the
 new release.
 **Links:** REQ-OCCTL-CLI-001, REQ-OCCTL-CLI-002, REQ-OCCTL-ERR-001
+
+---
+
+### REQ-OCCTL-CLI-012 — Location of a remote address
+
+**Requirement:** The location that `show user`, `show id`, `show session`
+and `show sessions` print for a remote IP address MUST be looked up in the
+system MaxMind DB databases of REQ-OCCTL-COMPAT-003. The country
+MUST be the English name, or without one the ISO code, of the Country
+database record's `country`; when the record has no `country`, of its
+`represented_country` (the country its users represent, e.g. for a
+military base) or, without one, of its `registered_country` (the country
+in which the network is registered). The English city name
+(`city/names/en`) and the `<latitude>,<longitude>` coordinates (printed
+with `%f`) MUST come from the City database. The location MUST be printed
+as `CITY, COUNTRY (COORDINATES)`, omitting the city and its comma, or the
+coordinates and their parentheses, when not found. When no country is
+found — no backend, a missing database, an address not in it, or a record
+with none of the three countries — the location MUST be `unknown`; this is
+not an error.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/occtl/maxmind.c `geo_lookup()`, `lookup()`; src/occtl/unix.c
+`common_info_cmd()`, `session_info_cmd()` (`Location`)
+**Acceptance:** positive — `tests/geo-lookup` against databases generated
+by `tests/mkmmdb.py` from `tests/geo-country.json` and
+`tests/geo-city.json`: `192.0.2.5` → `Athens, Greece (37.984200,23.735300)`,
+`2001:db8::1` → `Berlin, Germany (52.519600,13.406900)`, `198.51.100.5`
+(only `registered_country` US) → `United States (37.751000,-97.822000)`,
+`198.51.100.130` (`represented_country` US, `registered_country` DE) →
+`United States (37.751000,-97.822000)`. Negative — `198.51.100.200` (no
+country of any kind), `203.0.113.1` (not in the databases), and a string
+that is not an address → `unknown`.
+**Links:** REQ-OCCTL-CLI-007, REQ-OCCTL-COMPAT-002, REQ-OCCTL-COMPAT-003
 
 ---
 

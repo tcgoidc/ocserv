@@ -61,6 +61,33 @@ foreach name, cfg : unit_tests
   test(name, exe, env: test_env, workdir: test_workdir, timeout: cfg['timeout'])
 endforeach
 
+# geo-lookup: occtl's location lookup against databases generated from
+# geo-*.json instead of the system ones, whose contents vary
+python3 = find_program('python3', required: false)
+if maxmind_dep.found() and python3.found()
+  geo_dbs = []
+  foreach db : ['country', 'city']
+    geo_dbs += custom_target('geo-' + db + '.mmdb',
+      input: ['mkmmdb.py', 'geo-' + db + '.json'],
+      output: 'geo-' + db + '.mmdb',
+      command: [python3, '@INPUT@', '@OUTPUT@'],
+      # CI runs meson test --no-rebuild, which skips the test's depends
+      build_by_default: true,
+    )
+  endforeach
+  geo_lookup_exe = executable('geo-lookup',
+    ['geo-lookup.c', files('../src/occtl/maxmind.c')],
+    c_args: [
+      '-DMAXMINDDB_LOCATION_COUNTRY="' + geo_dbs[0].full_path() + '"',
+      '-DMAXMINDDB_LOCATION_CITY="' + geo_dbs[1].full_path() + '"',
+    ],
+    dependencies: [maxmind_dep],
+    include_directories: test_inc,
+  )
+  test('geo-lookup', geo_lookup_exe, depends: geo_dbs,
+    env: test_env, workdir: test_workdir, timeout: 30)
+endif
+
 # config-inherit: exercises vhost config inheritance (#705).
 # Textually includes config.c and its dependencies so that the static
 # parse_cfg_file() is accessible from the test.  Requires gnutls (for

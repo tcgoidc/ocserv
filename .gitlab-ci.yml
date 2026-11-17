@@ -16,7 +16,7 @@ variables:
   CENTOS10_BUILD: buildenv-centos10
   MINIMAL_OPTIONS: >-
     -Dlocal-protobuf=true -Dlocal-talloc=true -Dlibnl=disabled
-    -Dmaxmind=disabled -Dgeoip=disabled -Dliboath=disabled
+    -Dmaxmind=disabled -Dliboath=disabled
     -Dpam=disabled -Dradius=disabled -Dutmp=disabled
     -Dlibwrap=disabled -Dseccomp=disabled -Dsystemd=disabled
     -Dlz4=disabled -Dgssapi=disabled
