@@ -46,7 +46,6 @@ asn1_node _kkdcp_pkix1_asn;
 extern struct snapshot_t *config_snapshot;
 
 sigset_t sig_default_set;
-static unsigned int allow_broken_clients;
 
 static int set_ws_from_env(worker_st *ws);
 
@@ -59,7 +58,6 @@ int main(int argc, char *argv[])
 	void *main_pool, *config_pool;
 	main_server_st *s;
 	worker_st *ws;
-	char *str;
 
 #ifdef DEBUG_LEAKS
 	talloc_enable_leak_report_full();
@@ -128,10 +126,6 @@ int main(int argc, char *argv[])
 	}
 
 	restore_secmod_socket_file_name(ws->secmod_addr.sun_path);
-
-	str = getenv("OCSERV_ALLOW_BROKEN_CLIENTS");
-	if (str && str[0] == '1' && str[1] == 0)
-		allow_broken_clients = 1;
 
 	sigemptyset(&sig_default_set);
 
