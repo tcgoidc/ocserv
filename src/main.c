@@ -178,7 +178,8 @@ static int socket_mptcp(struct netns_fds *netns, int family)
 	return socket_netns(netns, family, SOCK_STREAM, IPPROTO_MPTCP);
 }
 
-static inline bool is_mptcp_socket(int fd)
+#ifdef HAVE_LIBSYSTEMD
+static bool is_mptcp_socket(int fd)
 {
 	int proto = 0;
 	socklen_t len = sizeof(proto);
@@ -186,16 +187,12 @@ static inline bool is_mptcp_socket(int fd)
 	return getsockopt(fd, SOL_SOCKET, SO_PROTOCOL, &proto, &len) == 0 &&
 	       proto == IPPROTO_MPTCP;
 }
+#endif /* HAVE_LIBSYSTEMD */
 #else /* !__linux__ */
 static int socket_mptcp(struct netns_fds *netns, int family)
 {
 	errno = EPROTONOSUPPORT;
 	return -1;
-}
-
-static inline bool is_mptcp_socket(int fd)
-{
-	return false;
 }
 #endif /* __linux__ */
 
