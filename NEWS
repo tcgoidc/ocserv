@@ -55,6 +55,12 @@
   receives the other users' iroutes as its only routes, which made it a
   split tunnel limited to them and, with restrict-user-to-routes, blocked
   its other traffic.
+- The server listens on the addresses it is configured for, whatever address
+  families have an address when it starts. Without listen-host it opened only
+  the family that had an address outside loopback at that moment, and with an
+  IPv4 address as listen-host on a host with only IPv6 addresses it did not
+  start: "getaddrinfo() failed: Address family for hostname not supported"
+  (#594)
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)

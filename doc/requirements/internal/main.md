@@ -222,6 +222,36 @@ warning is logged and clients connect; pass an MPTCP listening socket
 instead: no warning, and `ss -M` lists the listener.
 **Links:** REQ-MAIN-INIT-007
 
+### REQ-MAIN-INIT-009 — The listen addresses do not depend on the address families that have an address at start
+
+**Requirement:** When main creates its own listening sockets (no systemd
+socket activation, see REQ-MAIN-INIT-008), it MUST resolve its TCP and UDP
+listen addresses without regard to which address families have an address
+outside loopback when it starts. When `listen-host` is not set, it MUST
+open its TCP listener on the IPv4 and on the IPv6 wildcard address, and
+when neither `udp-listen-host` nor `listen-host` is set, its UDP listener
+likewise: an interface that carries only IPv6 addresses MUST NOT leave the
+server without an IPv4 listener, and the reverse. A configured address
+MUST resolve whatever families have an address: an IPv4 address as
+`listen-host` on a host whose interfaces carry only IPv6 addresses MUST NOT
+stop the server. A configured host name MUST be resolved for both families.
+Whether a resolved address can be used is decided when its socket is
+created and bound: an address that fails there is skipped, and if no TCP
+listener can be opened, main MUST exit with an error.
+**Strength:** MUST / MUST NOT
+**Status:** DERIVED
+**Source:** src/main.c (`listen_ports()`, `_listen_ports()`); getaddrinfo(3)
+(`AI_PASSIVE`, `AI_ADDRCONFIG`); RFC 3493 section 6.1
+**Acceptance:** `tests/test-listen-families` — CI (root), in a network
+namespace with one dummy interface that carries a single address family.
+Positive: with only an IPv6 address, and with only an IPv4 address, the
+server started without `listen-host` has a TCP and a UDP listener on
+`0.0.0.0` and on `[::]`; with only an IPv6 address and
+`listen-host = 127.0.0.2` it listens on that address alone. Negative: with
+a `listen-host` that is not an address of the host the server exits with
+"Could not listen to any TCP ports".
+**Links:** REQ-MAIN-INIT-007, REQ-MAIN-INIT-008
+
 ---
 
 ## SESSION — Cookie resumption
@@ -686,7 +716,8 @@ partial reload.
   `set_udp_socket_options`, `set_common_socket_options`) is configuration
   plumbing with no MUST/MUST NOT contract beyond "bind what's configured in
   `doc/sample.config` (`listen-host`, `tcp-port`, `udp-port`, etc.)" and the
-  TCP listener protocol (REQ-MAIN-INIT-007, REQ-MAIN-INIT-008) —
+  TCP listener protocol (REQ-MAIN-INIT-007, REQ-MAIN-INIT-008) and the
+  listen address resolution (REQ-MAIN-INIT-009) —
   `[UNDOCUMENTED: candidate REQ-MAIN-INIT-* if specific socket-option
   requirements (e.g. SO_REUSEADDR, IPV6_V6ONLY) are found to matter for
   correctness rather than just performance.]`

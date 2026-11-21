@@ -1,0 +1,165 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Pavel Lavrukhin
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Test the listen addresses (REQ-MAIN-INIT-009): they do not depend on the
+# address families that have an address when the server starts. The server
+# runs in a network namespace of its own, beside one dummy interface that
+# carries a single address family. Without listen-host it must listen on
+# 0.0.0.0 and on [::], for TCP and for UDP; with an IPv4 address as
+# listen-host, beside an interface that has only an IPv6 address, it must
+# listen on that address alone. A listen-host that is not an address of the
+# host must still stop the server.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+OUTFILE=ss.$$.tmp
+LOGFILE=ocserv-log.$$.tmp
+NSNAME=ocserv-listen-tmp-$$
+DEV=oclisten0
+SS=$(command -v ss)
+
+. `dirname $0`/random-vpnnet.sh
+. `dirname $0`/common.sh
+
+if test -z "${SS}"; then
+	echo "ss was not found; skipping"
+	exit 77
+fi
+
+if ! test -e /proc/sys/net/ipv6; then
+	echo "The kernel has no IPv6 support; skipping"
+	exit 77
+fi
+
+# the addresses of the dummy interface
+alloc_vpnnet4 LISTENNET4
+alloc_vpnnet6 LISTENNET6
+
+function finish {
+	echo " * Cleaning up..."
+	stop_server
+	${IP} netns delete ${NSNAME} >/dev/null 2>&1
+	rm -f ${OUTFILE} ${LOGFILE} ${PIDFILE} ${CONFIG} ${CONFIG_HOST} ${CONFIG_FOREIGN}
+}
+trap finish EXIT
+
+# single_family FAMILY ADDRESS: gives the namespace one interface whose only
+# address is ADDRESS. addrgenmode none keeps the kernel from adding an IPv6
+# link-local address, and nodad makes the address usable at once.
+single_family() {
+	${IP} -n ${NSNAME} link add ${DEV} type dummy &&
+		${IP} -n ${NSNAME} link set dev ${DEV} addrgenmode none &&
+		${IP} -n ${NSNAME} link set ${DEV} up &&
+		${IP} -n ${NSNAME} -$1 addr add $2 dev ${DEV} nodad ||
+		{ echo "FAIL: could not set up ${DEV} with $2"; exit 1; }
+}
+
+start_server() {
+	${IP} netns exec ${NSNAME} ${SERV} -p ${PIDFILE} -f -c $1 -d 1 >${LOGFILE} 2>&1 & PID=$!
+}
+
+stop_server() {
+	if test -n "${PID}"; then
+		kill ${PID} >/dev/null 2>&1
+		wait ${PID} 2>/dev/null
+		PID=""
+	fi
+}
+
+# listeners PROTO: prints the sorted local addresses that listen on PORT in
+# the namespace, on one line; PROTO is t for TCP or u for UDP
+listeners() {
+	${SS} -N ${NSNAME} -H -n -l -$1 "sport = :${PORT}" |
+		awk '{print $4}' | sed "s/:${PORT}\$//" | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//'
+}
+
+# expect_listeners EXPECTED: waits until the TCP and the UDP listeners are
+# exactly EXPECTED, and fails if they are not within 15 seconds or if the
+# server exits
+expect_listeners() {
+	for i in $(seq 1 15); do
+		if ! kill -0 ${PID} 2>/dev/null; then
+			cat ${LOGFILE}
+			echo "FAIL: the server exited; expected it to listen on '$1'"
+			exit 1
+		fi
+		tcp=$(listeners t)
+		udp=$(listeners u)
+		test "${tcp}" = "$1" && test "${udp}" = "$1" && return 0
+		sleep 1
+	done
+	cat ${LOGFILE}
+	echo "FAIL: expected TCP and UDP listeners on '$1', found TCP '${tcp}' and UDP '${udp}'"
+	exit 1
+}
+
+eval "${GETPORT}"
+
+update_config test1.config
+CONFIG_HOST=${CONFIG}.host
+CONFIG_FOREIGN=${CONFIG}.foreign
+# 127.0.0.2 is an address of the loopback interface; 192.0.2.1 (TEST-NET-1)
+# is an address of no interface
+(cat ${CONFIG}; echo "listen-host = 127.0.0.2") >${CONFIG_HOST}
+(cat ${CONFIG}; echo "listen-host = 192.0.2.1") >${CONFIG_FOREIGN}
+
+${IP} netns add ${NSNAME} || { echo "FAIL: could not add the namespace ${NSNAME}"; exit 1; }
+${IP} -n ${NSNAME} link set lo up
+
+echo "*** Test 1 - only an IPv6 address, no listen-host"
+single_family 6 ${LISTENNET6_BASE}1/112
+start_server ${CONFIG}
+expect_listeners "0.0.0.0 [::]"
+stop_server
+
+echo "*** Test 2 - only an IPv6 address, an IPv4 address as listen-host"
+start_server ${CONFIG_HOST}
+expect_listeners "127.0.0.2"
+stop_server
+
+echo "*** Test 3 - only an IPv6 address, a listen-host that is not a local address"
+start_server ${CONFIG_FOREIGN}
+for i in $(seq 1 15); do
+	kill -0 ${PID} 2>/dev/null || break
+	sleep 1
+done
+if kill -0 ${PID} 2>/dev/null; then
+	cat ${LOGFILE}
+	echo "FAIL: expected the server to exit, it still runs with TCP listeners on '$(listeners t)'"
+	exit 1
+fi
+wait ${PID}
+ret=$?
+PID=""
+if test ${ret} = 0 || ! grep -q "Could not listen to any TCP ports" ${LOGFILE}; then
+	cat ${LOGFILE}
+	echo "FAIL: expected the server to exit with 'Could not listen to any TCP ports', it exited ${ret}"
+	exit 1
+fi
+${IP} -n ${NSNAME} link delete ${DEV}
+
+echo "*** Test 4 - only an IPv4 address, no listen-host"
+single_family 4 ${LISTENNET4_ADDR}/24
+start_server ${CONFIG}
+expect_listeners "0.0.0.0 [::]"
+stop_server
+
+exit 0

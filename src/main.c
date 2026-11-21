@@ -426,11 +426,11 @@ static int listen_ports(void *pool, struct static_cfg_st *sconfig,
 
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_flags = AI_PASSIVE
-#ifdef AI_ADDRCONFIG
-				 | AI_ADDRCONFIG
-#endif
-			;
+		/* No AI_ADDRCONFIG: the address families that have an
+		 * address when the server starts must not decide where it
+		 * listens. An address the host cannot use fails in socket()
+		 * or bind() and is skipped. */
+		hints.ai_flags = AI_PASSIVE;
 
 		ret = getaddrinfo(sconfig->listen_host, portname, &hints, &res);
 		if (ret != 0) {
@@ -457,11 +457,7 @@ static int listen_ports(void *pool, struct static_cfg_st *sconfig,
 
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_socktype = SOCK_DGRAM;
-		hints.ai_flags = AI_PASSIVE
-#ifdef AI_ADDRCONFIG
-				 | AI_ADDRCONFIG
-#endif
-			;
+		hints.ai_flags = AI_PASSIVE;
 
 		ret = getaddrinfo(sconfig->udp_listen_host, portname, &hints,
 				  &res);
