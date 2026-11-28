@@ -1,25 +1,40 @@
 * Version 1.6.1 (unreleased)
-- The worker keeps GnuTLS from handing its TLS connection to the kernel
-  (kTLS), which "ktls = true" in the GnuTLS configuration turns on. With
-  kTLS, VPN sessions failed, or, with isolate-workers, kept a tls ULP
-  without keys on the socket (#766)
 - Fixed occasional 80-90% ocserv-worker CPU usage (#767)
 - The worker reads up to 8 records per wakeup from the TLS connection and
   from DTLS, as it already did for packets from the TUN device. Under load,
   this lowers latency and raises upload throughput over TLS, and over DTLS
   keeps the worker from dropping the client's packets.
-- More than 255 sec-mod instances are allowed (up to 65535). Previously the
-  instances above 255 could not resume the sessions they held (#779)
+- Added the listen-mptcp option: the TCP listening sockets accept Multipath
+  TCP (MPTCP) connections, falling back to TCP with a warning when the
+  kernel does not provide MPTCP.
 - Fixed heap overflow in configuration parsing when a virtual host adds
   to a multi-line option it inherits (e.g., route or dns), or with 96 or
   more select-group entries (#770, #773)
+- An option set in a virtual host now replaces the value from the top-level
+  configuration, also for options that can be given multiple times (route,
+  no-route, dns, nbns, split-dns, custom-header, included-http-headers) and
+  for restrict-user-to-ports, as it already did for select-group. These were
+  appended to the top-level values before, which corrupted memory (#770).
+- A virtual host that sets 'auth' no longer inherits 'acct' from the
+  top-level configuration, as it already did not inherit 'enable-auth'.
+  Such a virtual host performs no accounting unless its section sets 'acct'.
+  A virtual host that does not set 'auth' inherits 'auth', 'enable-auth'
+  and 'acct'. 'kkdcp' is inherited from the top-level configuration if not
+  set.
+- Prevent GnuTLS from handing its TLS connection to the kTLS until
+  known bugs are fixed (#766)
 - Virtual hosts inherit the select-group labels of the default virtual host.
   A virtual host's select-group entries replace the inherited ones, which
   is now specified rather than a side effect, and an entry with an empty
   label is shown by its group name (#773)
-- The bundled llhttp was updated to 9.4.3.
-- Fixed building occtl against libedit, which is used when GNU readline is
-  not found; since 1.2.0 it failed on an undeclared c_isspace().
+- With append-routes, a user without routes of its own receives each route
+  of the server once; it was sent twice.
+- With expose-iroutes, a user with no routes (full tunnel) no longer
+  receives the other users' iroutes as its only routes, which made it a
+  split tunnel limited to them.
+- The bundled llhttp was updated to 9.4.3
+- The server listens on the addresses it is configured for, whatever address
+  families have an address when it starts (#594)
 - occtl: 'terminate user' invalidates the user's cookies in every sec-mod
   instance; 'terminate id' fails if the cookie could not be invalidated.
 - occtl accepts only its documented options, and '--socket-file=FILE';
@@ -37,39 +52,7 @@
   GeoLite2 ones, and using the DB-IP Lite names when neither is present. The location now includes the city, and falls back to the
   represented or registered country of addresses that have no country
   (e.g. anycast or satellite networks).
-- An option set in a virtual host now replaces the value from the top-level
-  configuration, also for options that can be given multiple times (route,
-  no-route, dns, nbns, split-dns, custom-header, included-http-headers) and
-  for restrict-user-to-ports, as it already did for select-group. These were
-  appended to the top-level values before, which for most configurations also
-  corrupted memory (#770). A virtual host that relied on that must repeat the
-  top-level values in its section.
-- A virtual host that sets 'auth' no longer inherits 'acct' from the
-  top-level configuration, as it already did not inherit 'enable-auth'.
-  Such a virtual host performs no accounting unless its section sets 'acct'.
-  A virtual host that does not set 'auth' inherits 'auth', 'enable-auth'
-  and 'acct'; setting 'enable-auth' or 'acct' in it is now a configuration
-  error instead of being silently ignored.
-- A virtual host that does not set 'kkdcp' now inherits it from the
-  top-level configuration, like other options; it previously was not
-  inherited.
-- Added the listen-mptcp option: the TCP listening sockets accept Multipath
-  TCP (MPTCP) connections, falling back to TCP with a warning when the
-  kernel does not provide MPTCP.
-- With append-routes, a user without routes of its own receives each route
-  of the server once; it was sent twice. The option is now documented, and
-  a user's own routes are followed by the server's and then by the exposed
-  iroutes, which came before the server's routes.
-- With expose-iroutes, a user with no routes (full tunnel) no longer
-  receives the other users' iroutes as its only routes, which made it a
-  split tunnel limited to them and, with restrict-user-to-routes, blocked
-  its other traffic.
-- The server listens on the addresses it is configured for, whatever address
-  families have an address when it starts. Without listen-host it opened only
-  the family that had an address outside loopback at that moment, and with an
-  IPv4 address as listen-host on a host with only IPv6 addresses it did not
-  start: "getaddrinfo() failed: Address family for hostname not supported"
-  (#594)
+
 
 * Version 1.6.0 (released 2026-10-16)
 - Send the RADIUS session ID as Acct-Session-Id in the Access-Request (#751)
