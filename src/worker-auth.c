@@ -1059,7 +1059,8 @@ static int recv_cookie_auth_reply(worker_st *ws)
 				WSRCONFIG(ws)->no_udp = msg->config->no_udp;
 
 			/* routes */
-			if (ip_routes_have_default(msg->config->routes,
+			if (msg->config->n_routes == 0 ||
+			    ip_routes_have_default(msg->config->routes,
 						   msg->config->n_routes))
 				ws->default_route = 1;
 		} else {

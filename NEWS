@@ -2,6 +2,11 @@
 - A route of 0.0.0.0/0, as well as 0.0.0.0/0.0.0.0, requests the default
   route again, like 'default'. Since 1.6.0 it was sent as an IPv4 route,
   which left IPv6 traffic out of the tunnel.
+- X-CSTP-Tunnel-All-DNS is true for every full tunnel, as the
+  documentation of tunnel-all-dns stated. A full tunnel set in the
+  top-level configuration or a virtual host sent the tunnel-all-dns value
+  (by default false) before; tunnel-all-dns now only applies to split
+  tunnels.
 - Fixed occasional 80-90% ocserv-worker CPU usage (#767)
 - The worker reads up to 8 records per wakeup from the TLS connection and
   from DTLS, as it already did for packets from the TUN device. Under load,

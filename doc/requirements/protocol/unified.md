@@ -177,7 +177,8 @@ conditionally present
 **Source mapping**: OC-PROTO-CONN-007; AC-CLIENT-CONN-002 (DNS header name
 choice depends on `user_agent_type`, see REQ-PROTO-CFG-002); OCSERV
 `src/worker-vpn.c` (`send_routes`, `ws->default_route`, `ws->user_config->tunnel_all_dns`);
-which routes request the default route: REQ-CONFIG-CFG-013.
+which routes request the default route: REQ-CONFIG-CFG-013; a full-tunnel
+session sends `X-CSTP-Tunnel-All-DNS: true` (REQ-WORKER-NET-008).
 **Acceptance**: with no routes configured and `default_route` true, no
 `X-CSTP-Split-Include*` header is sent and the client tunnels all traffic.
 **Divergence**: the *choice of DNS header name* (`X-CSTP-DNS` vs

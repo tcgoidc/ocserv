@@ -687,8 +687,9 @@ config parsing and the CONNECT response agree:
   - for a session whose `route` values include such a value, the worker
     MUST NOT send any `X-CSTP-Split-Include` header for its routes
     (REQ-PROTO-CONN-007; the `2000::/3` sent to iOS clients by
-    REQ-PROTO-CFG-003 is not one of them). The other `route` values of
-    that session are not sent.
+    REQ-PROTO-CFG-003 is not one of them) and MUST send
+    `X-CSTP-Tunnel-All-DNS: true` (REQ-WORKER-NET-008). The other `route`
+    values of that session are not sent.
 The rule applies to `route` only: in `no-route` and `iroute`, `0.0.0.0/0`
 keeps its meaning as an address range.
 **Strength:** MUST
@@ -716,7 +717,7 @@ requirement, and a configuration relying on it now tunnels all traffic.
 because, after validation, it cannot be told apart from `0.0.0.0/0` and
 covers the same addresses. `::/0` is not recognized.
 **Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-012, REQ-MAIN-SEC-008,
-REQ-PROTO-CONN-007
+REQ-WORKER-NET-008, REQ-PROTO-CONN-007
 
 ---
 

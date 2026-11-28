@@ -604,6 +604,43 @@ VPN session's connection has no `tls` ULP and the tunnel carries traffic.
 **Acceptance:** local — (a) Confirm by code inspection that the watcher is stopped and its associated socket is closed when `gnutls_record_recv_packet()` returns `0` (EOF) and when the DTLS handshake fails. (b) Connect a client to the server and verify the DTLS session is successfully established. Force a DTLS disconnection while preserving the TCP session (e.g., by blocking the UDP port on the firewall). Wait for the client to establish a new DTLS session. Confirm with `lsof -p <ocserv-worker-pid>` that the worker holds only one open UDP file descriptor.
 **Links:** —
 
+### REQ-WORKER-NET-008 — A full-tunnel session is told to send all DNS queries through the VPN
+
+**Requirement:** In its CONNECT response the worker MUST send
+`X-CSTP-Tunnel-All-DNS: true` when the session is a full tunnel — its
+`route` values are empty, or include a value that requests the default
+route (REQ-CONFIG-CFG-013) — whatever the value of `tunnel-all-dns`. For
+any other session it MUST send `X-CSTP-Tunnel-All-DNS` with the session's
+`tunnel-all-dns` value: the user's or group's if its file sets it, the
+vhost's otherwise, `false` if neither sets it. The header tells AnyConnect
+clients to send every DNS query to the `X-CSTP-DNS` servers through the VPN,
+even when split tunneling is in use; a full tunnel already sends all its
+traffic through the VPN, and the header keeps DNS queries out of its
+`no-route` networks. The OpenConnect client does not use the header.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/worker-vpn.c (`connect_handler`, "X-CSTP-Tunnel-All-DNS");
+src/worker-auth.c (`recv_cookie_auth_reply`, `ws->default_route`);
+src/ip-util.c (`ip_routes_have_default`); doc/sample.config
+`tunnel-all-dns`
+**Acceptance:** CI (TUN) — `tests/test-route-default`, reading the CONNECT
+reply with `oc-client.py connect`: (a) a vhost with `route = default` and without
+`tunnel-all-dns` sends `true`; (b) a vhost with no `route` sends `true`;
+(c) a vhost with `route = default` and `tunnel-all-dns = false` sends
+`true`; (d) a user file with `route = default` and `tunnel-all-dns = false`
+sends `true`; (e) negative: a vhost with a split `route` and without
+`tunnel-all-dns` sends `false`; (f) a vhost with a split `route` and
+`tunnel-all-dns = true` sends `true`. `tests/test-user-config` keeps
+checking that a user's `tunnel-all-dns` overrides the vhost's on a split
+tunnel.
+**Note:** before this requirement only a `route = default` in a user's or
+group's file, or from RADIUS, sent `true` regardless of `tunnel-all-dns`; a
+vhost full tunnel sent the `tunnel-all-dns` value, by default `false`,
+although `doc/sample.config` has described `true` as the default for a
+default route since the option was added. An explicit
+`tunnel-all-dns = false` has no effect on a full tunnel.
+**Links:** REQ-CONFIG-CFG-013, REQ-PROTO-CONN-007
+
 ## Completeness notes
 
 - **`worker-vpn.c` main loops** (`tls_mainloop`, `dtls_mainloop`,

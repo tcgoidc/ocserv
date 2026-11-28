@@ -18,8 +18,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # REQ-CONFIG-CFG-013: a route of default or 0.0.0.0/0, set in the vhost
-# or in a user's file, makes the session a full tunnel. Reads the CONNECT
-# reply with oc-client.py.
+# or in a user's file, makes the session a full tunnel. REQ-WORKER-NET-008:
+# a full tunnel sends Tunnel-All-DNS true. Reads the CONNECT reply with
+# oc-client.py.
 
 SERV="${SERV:-../src/ocserv}"
 srcdir=${srcdir:-.}
@@ -49,12 +50,10 @@ update_config test-route-default.config
 BASE_CONFIG=${CONFIG}.base
 cp ${CONFIG} ${BASE_CONFIG}
 
-# start_server ROUTE...: starts the server with these vhost routes
+# start_server LINE...: starts the server with these vhost options
 start_server() {
 	cp ${BASE_CONFIG} ${CONFIG}
-	for r in "$@"; do
-		echo "route = $r" >>${CONFIG}
-	done
+	printf '%s\n' "$@" >>${CONFIG}
 	# VERBOSE keeps the server's log, which oc_fail prints
 	VERBOSE=1 launch_simple_server -d 1 -f -c ${CONFIG} >${SERVER_LOG} 2>&1
 	PID=$!
@@ -77,19 +76,61 @@ connect() {
 		oc_fail "$1: the tunnel was not opened"
 }
 
+# expect_tunnel_all_dns VALUE WHAT
+expect_tunnel_all_dns() {
+	oc_expect "X-CSTP-Tunnel-All-DNS: $1\$" "$2"
+}
+
 echo " * vhost: route = 0.0.0.0/0 after a split route"
-start_server 192.0.2.0/24 0.0.0.0/0
+start_server "route = 192.0.2.0/24" "route = 0.0.0.0/0"
 user_config
 connect "vhost 0.0.0.0/0"
 oc_expect_not "X-CSTP-Split-Include:" "vhost route = 0.0.0.0/0 is a full tunnel"
+expect_tunnel_all_dns true "vhost route = 0.0.0.0/0 tunnels all DNS"
+stop_server
+
+echo " * vhost: route = default"
+start_server "route = default"
+user_config
+connect "vhost default"
+expect_tunnel_all_dns true "vhost route = default tunnels all DNS"
+stop_server
+
+echo " * vhost: no route"
+start_server
+user_config
+connect "vhost without route"
+oc_expect_not "X-CSTP-Split-Include:" "a vhost without route is a full tunnel"
+expect_tunnel_all_dns true "a vhost without route tunnels all DNS"
+stop_server
+
+echo " * vhost: route = default, tunnel-all-dns = false"
+start_server "route = default" "tunnel-all-dns = false"
+user_config
+connect "vhost default, tunnel-all-dns false"
+expect_tunnel_all_dns true "tunnel-all-dns = false has no effect on a full tunnel"
+stop_server
+
+echo " * vhost: split route, tunnel-all-dns = true"
+start_server "route = 192.0.2.0/24" "tunnel-all-dns = true"
+user_config
+connect "vhost split route, tunnel-all-dns true"
+expect_tunnel_all_dns true "a split tunnel sends tunnel-all-dns = true"
 stop_server
 
 echo " * vhost: split route"
-start_server 192.0.2.0/24
+start_server "route = 192.0.2.0/24"
 user_config
 connect "vhost split route"
 oc_expect "X-CSTP-Split-Include: 192\.0\.2\.0/255\.255\.255\.0" \
 	"the vhost's split route is sent"
+expect_tunnel_all_dns false "a split tunnel does not tunnel all DNS by default"
+
+echo " * user: route = default, tunnel-all-dns = false"
+user_config "route = default" "tunnel-all-dns = false"
+connect "user default, tunnel-all-dns false"
+oc_expect_not "X-CSTP-Split-Include:" "user route = default is a full tunnel"
+expect_tunnel_all_dns true "tunnel-all-dns = false has no effect on a user's full tunnel"
 
 echo " * user: route = 0.0.0.0/0"
 user_config "route = 0.0.0.0/0"
