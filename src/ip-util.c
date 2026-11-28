@@ -257,6 +257,24 @@ int ip_route_sanity_check(void *pool, char **_route)
 	return 0;
 }
 
+unsigned int ip_route_is_default(const char *route)
+{
+	return (strcmp(route, "default") == 0 ||
+		strcmp(route, "0.0.0.0/0") == 0);
+}
+
+unsigned int ip_routes_have_default(char *const *routes, unsigned int n_routes)
+{
+	unsigned int i;
+
+	for (i = 0; i < n_routes; i++) {
+		if (ip_route_is_default(routes[i]))
+			return 1;
+	}
+
+	return 0;
+}
+
 /* Converts a route from xxx.xxx.xxx.xxx/xxx.xxx.xxx.xxx format, to
  * xxx.xxx.xxx.xxx/prefix format.
  */

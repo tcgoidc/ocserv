@@ -22,6 +22,7 @@
  * well-formed IPv4/IPv6 CIDR, not merely normalize IPv4 prefix syntax.
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +69,27 @@ static void expect_accept(const char *route, const char *expected)
 	talloc_free(pool);
 }
 
+/* REQ-CONFIG-CFG-013: whether a list of routes requests a full tunnel */
+static void expect_default(unsigned int expected, unsigned int n, ...)
+{
+	char *routes[8];
+	unsigned int i, ret;
+	va_list ap;
+
+	va_start(ap, n);
+	for (i = 0; i < n; i++)
+		routes[i] = va_arg(ap, char *);
+	va_end(ap);
+
+	ret = ip_routes_have_default(routes, n);
+	if (ret != expected) {
+		fprintf(stderr,
+			"error: ip_routes_have_default() of %u route(s) starting with '%s' returned %u, expected %u\n",
+			n, (n > 0) ? routes[0] : "", ret, expected);
+		exit(1);
+	}
+}
+
 int main(void)
 {
 	/* --- malicious routes: MUST be rejected regardless of family --- */
@@ -105,6 +127,17 @@ int main(void)
 	expect_reject("Default");
 	expect_reject("default/24");
 	expect_reject("default; touch /tmp/x");
+
+	/* --- routes that request the default route --- */
+	expect_default(1, 1, "default");
+	expect_default(1, 1, "0.0.0.0/0");
+	expect_default(1, 3, "192.0.2.0/255.255.255.0", "2001:db8::/32",
+		       "default");
+	expect_default(0, 0);
+	expect_default(0, 1, "0.0.0.0/1");
+	expect_default(0, 1, "10.0.0.0/8");
+	expect_default(0, 1, "::/0");
+	expect_default(0, 2, "192.0.2.0/255.255.255.0", "2001:db8::/32");
 
 	printf("All route sanity check tests passed.\n");
 	return 0;

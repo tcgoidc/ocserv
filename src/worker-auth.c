@@ -42,6 +42,7 @@
 #include "worker-tun.h"
 #include "common/common.h"
 #include "tlslib.h"
+#include "ip-util.h"
 
 #include <llhttp.h>
 
@@ -940,20 +941,6 @@ fail:
 	return ret;
 }
 
-static unsigned int check_if_default_route(char **routes,
-					   unsigned int routes_size)
-{
-	unsigned int i;
-
-	for (i = 0; i < routes_size; i++) {
-		if (strcmp(routes[i], "default") == 0 ||
-		    strcmp(routes[i], "0.0.0.0/0") == 0)
-			return 1;
-	}
-
-	return 0;
-}
-
 /* auth reply from main process */
 static int recv_cookie_auth_reply(worker_st *ws)
 {
@@ -1072,7 +1059,7 @@ static int recv_cookie_auth_reply(worker_st *ws)
 				WSRCONFIG(ws)->no_udp = msg->config->no_udp;
 
 			/* routes */
-			if (check_if_default_route(msg->config->routes,
+			if (ip_routes_have_default(msg->config->routes,
 						   msg->config->n_routes))
 				ws->default_route = 1;
 		} else {

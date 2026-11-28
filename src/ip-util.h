@@ -32,6 +32,8 @@
 
 void set_mtu_disc(int fd, int family, int val);
 int ip_route_sanity_check(void *pool, char **_route);
+unsigned int ip_route_is_default(const char *route);
+unsigned int ip_routes_have_default(char *const *routes, unsigned int n_routes);
 
 int ip_cmp(const struct sockaddr_storage *s1,
 	   const struct sockaddr_storage *s2);

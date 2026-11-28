@@ -2355,8 +2355,7 @@ static void check_cfg(vhost_cfg_st *vhost, vhost_cfg_st *defvhost,
 					  &config->network->routes[j]) != 0)
 			exit(EXIT_FAILURE);
 
-		if (strcmp(config->network->routes[j], "0.0.0.0/0") == 0 ||
-		    strcmp(config->network->routes[j], "default") == 0) {
+		if (ip_route_is_default(config->network->routes[j])) {
 			/* set default route */
 			for (i = 0; i < j; i++)
 				talloc_free(config->network->routes[i]);
