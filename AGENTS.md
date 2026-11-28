@@ -403,6 +403,8 @@ See `src/auth/plain.c` or `src/auth/pam.c` for reference.
 
 - Every commit must have a `Signed-off-by: Name <email>` line (DCO requirement)
 - Use `Resolves: #NNN` on the fixing commit; `Relates: #NNN` on related commits (e.g., tests)
+- Keep the subject line within 72 characters and wrap the body at 72 columns;
+  only trailers and unbreakable tokens (e.g., URLs) may exceed it
 
 ### Platform Portability
 
