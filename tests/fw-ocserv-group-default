@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Reproducer of issue #791 (REQ-MAIN-NET-007 (g)): with route = default and
+# restrict-user-to-routes = true in a group's file, ocserv-fw-nftables must
+# let the user in, and restrict it only from the vhost's no-route.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+PIDFILE=ocserv-pid.$$.tmp
+CLIPID=oc-pid.$$.tmp
+TMPFILE=fw-gd.$$.tmp
+PATH=${PATH}:/usr/sbin
+IP=$(command -v ip)
+
+. "$(dirname $0)/common.sh"
+
+eval "${GETPORT}"
+
+if test -z "${IP}"; then
+	echo "no IP tool is present"
+	exit 1
+fi
+
+if ! command -v nft >/dev/null 2>&1; then
+	echo "Skipping: nft not found"
+	exit 77
+fi
+
+if ! command -v ncat >/dev/null 2>&1; then
+	echo "Error: ncat not found"
+	exit 1
+fi
+
+echo "Testing ocserv-fw-nftables with route = default in a group's file (#791)..."
+
+export OCSERV_FW_SCRIPT="$(realpath "${srcdir}/../src/ocserv-fw-nftables")"
+
+LISTENER_PID=""
+
+function finish {
+	set +e
+	echo " * Cleaning up..."
+	test -n "${LISTENER_PID}" && kill "${LISTENER_PID}" >/dev/null 2>&1
+	cleanup_client_server
+	rm -f "${TMPFILE}" >/dev/null 2>&1
+	test -n "${CONFIG_PER_USER_DIR}" && rm -rf "${CONFIG_PER_USER_DIR}"
+}
+trap finish EXIT
+
+OCCTL_SOCKET=./occtl-fw-gd-$$.socket
+USERNAME=test
+
+. "$(dirname $0)/random-net.sh"
+. "$(dirname $0)/random-net2.sh"
+. "$(dirname $0)/ns.sh"
+
+# NS3 replies through NS2, which forwards the clients' traffic to it
+${IP} -n "${NSNAME3}" route replace default via "${ADDRESS2}" dev "${ETHNAME3}" onlink
+${IP} netns exec "${NSNAME2}" sysctl -w net.ipv4.ip_forward=1 >/dev/null
+
+# a destination in the vhost's no-route, configured on NS3
+alloc_vpnnet4 BLOCKEDNET
+BLOCKED_IP="${BLOCKEDNET_ADDR}"
+${IP} -n "${NSNAME3}" addr add "${BLOCKED_IP}/32" dev "${ETHNAME3}"
+${IP} -n "${NSNAME2}" route add "${BLOCKED_IP}/32" via "${ADDRESS2}" dev "${ETHNAME4}" onlink
+
+update_config_dir fw-group-default-group
+update_config fw-ocserv-group-default.config
+
+if test "${VERBOSE}" = 1; then
+	DEBUG="-d 3"
+fi
+
+${CMDNS2} ${SERV} -p "${PIDFILE}" -f -c "${CONFIG}" ${DEBUG} &
+PID=$!
+
+sleep 4
+
+echo " * Connecting to ${ADDRESS}:${PORT} in group1..."
+( echo "test" | ${CMDNS1} ${OPENCONNECT} "${ADDRESS}:${PORT}" \
+	-u "${USERNAME}" --authgroup group1 \
+	--servercert=pin-sha256:xp3scfzy3rOQsv9NcOve/8YVVv+pHr4qNCXEXrNl5s8= \
+	-s "${srcdir}/scripts/vpnc-script" \
+	--pid-file="${CLIPID}" \
+	--passwd-on-stdin -b >"${TMPFILE}" 2>&1 ) || {
+	cat "${TMPFILE}"
+	echo "FAIL: expected the user of group1 to connect, got a refusal"
+	exit 1
+}
+
+sleep 2
+
+# both destinations go through the tunnel, also the excluded one, as a
+# user who ignores the excluded route would send it
+${IP} -n "${NSNAME1}" route replace "${CLI_ADDRESS2}/32" via "${VPNADDR}"
+${IP} -n "${NSNAME1}" route replace "${BLOCKED_IP}/32" via "${VPNADDR}"
+
+start_listener() {
+	${CMDNS3} ncat -l -p "$1" >/dev/null 2>&1 &
+	LISTENER_PID=$!
+	sleep 0.2
+}
+
+stop_listener() {
+	test -n "${LISTENER_PID}" && kill "${LISTENER_PID}" >/dev/null 2>&1 || true
+	LISTENER_PID=""
+}
+
+tcp_ok() {
+	${CMDNS1} ncat -w 1 "$1" "$2" </dev/null >/dev/null 2>&1
+}
+
+echo -n " * TCP to an address outside the no-route should succeed ... "
+start_listener 80
+tcp_ok "${CLI_ADDRESS2}" 80 || { echo "FAIL: expected ${CLI_ADDRESS2} to be reachable, it was not"; exit 1; }
+stop_listener
+echo "ok"
+
+echo -n " * TCP to an address in the no-route should be blocked ... "
+start_listener 80
+tcp_ok "${BLOCKED_IP}" 80 && { echo "FAIL: expected ${BLOCKED_IP} (no-route) to be blocked, it was reachable"; exit 1; }
+stop_listener
+echo "ok"
+
+echo "All tests passed."
+exit 0

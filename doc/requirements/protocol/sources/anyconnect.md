@@ -163,12 +163,12 @@ future/unhandled value via `default`) -> enabled, with a `LOG_NOTICE` warning
 ## AC-CLIENT-CONN-004
 **Requirement**: When `ws->full_ipv6` is set and `req->is_ios` is set (set only
 when the `User-Agent` matches `"Cisco AnyConnect VPN Agent for Apple..."`, see
-AC-CLIENT-COMPAT-001) and the session has no configured routes or
-`ws->default_route == 0`, the worker MUST additionally send
-`X-CSTP-Split-Include-IP6: 2000::/3`.
+AC-CLIENT-COMPAT-001), the worker MUST additionally send
+`X-CSTP-Split-Include-IP6: 2000::/3`, for a full tunnel (an empty route
+list, REQ-CONFIG-CFG-013) as for a split tunnel.
 - Strength: MUST
-- Source: `src/worker-vpn.c` lines 2351-2357 (comment: "Anyconnect on IOS requires
-  this route in order to use IPv6")
+- Source: `src/worker-vpn.c` `connect_handler()` (comment: "Anyconnect on IOS
+  requires this route in order to use IPv6")
 - Acceptance: an iOS AnyConnect session (`User-Agent` starting with
   `"Cisco AnyConnect VPN Agent for Apple"`) with IPv6 enabled and no
   split-tunnel/default route receives `X-CSTP-Split-Include-IP6: 2000::/3` in the

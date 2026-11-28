@@ -1,0 +1,2 @@
+route = default
+restrict-user-to-routes = true

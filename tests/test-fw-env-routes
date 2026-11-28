@@ -1,0 +1,146 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# REQ-MAIN-NET-007 (a)-(f): the routes main exports to ocserv-fw. A
+# recorder stands in for ocserv-fw (OCSERV_FW_SCRIPT) and keeps the
+# environment of the connect run.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+
+require_oc_client
+
+eval "${GETPORT}"
+
+echo "Testing the routes exported to the firewall script... "
+
+FW_RECORDER=$(pwd)/fw-recorder.$$.tmp
+FW_ENV=$(pwd)/fw-env.$$.tmp
+
+function finish {
+  set +e
+  echo " * Cleaning up..."
+  cleanup
+  rm -f ${BASE_CONFIG} ${SERVER_LOG} ${FW_RECORDER} ${FW_ENV}
+  test -n "${CONFIG_PER_USER_DIR}" && rm -rf ${CONFIG_PER_USER_DIR}
+  test -n "${USER_DIR}" && rm -rf ${USER_DIR}
+}
+trap finish EXIT
+
+SERVER_LOG=$(mktemp)
+
+cat >${FW_RECORDER} <<EOF
+#!/bin/sh
+test "\${REASON}" = connect || exit 0
+env | grep -E '^OCSERV_(NO_)?ROUTES' | sed 's/ *\$//' | LC_ALL=C sort >${FW_ENV}
+exit 0
+EOF
+chmod 755 ${FW_RECORDER}
+export OCSERV_FW_SCRIPT=${FW_RECORDER}
+
+# test2 declares an iroute, which expose-iroutes gives to other sessions
+update_config_dir fw-env-routes-user
+USER_DIR=${CONFIG_PER_USER_DIR}
+update_config_dir fw-env-routes-group
+update_config test-fw-env-routes.config
+BASE_CONFIG=${CONFIG}.base
+cp ${CONFIG} ${BASE_CONFIG}
+
+# start_server LINE...: starts the server with these vhost options
+start_server() {
+	cp ${BASE_CONFIG} ${CONFIG}
+	printf '%s\n' "$@" >>${CONFIG}
+	# VERBOSE keeps the server's log, which oc_fail prints
+	VERBOSE=1 launch_simple_server -d 1 -f -c ${CONFIG} >${SERVER_LOG} 2>&1
+	PID=$!
+	wait_server $PID
+}
+
+stop_server() {
+	kill $PID
+	wait $PID 2>/dev/null
+}
+
+# connect WHAT LINE...: connects as test in group1, whose file holds LINEs
+# and restrict-user-to-routes, and keeps what ocserv-fw received
+connect() {
+	what=$1
+	shift
+	printf '%s\n' "$@" "restrict-user-to-routes = true" \
+		>${CONFIG_PER_USER_DIR}/group1
+	rm -f ${FW_ENV}
+	oc_run connect --group group1 --user test --password test ||
+		oc_fail "${what}: expected the tunnel to open, it did not"
+	test -f ${FW_ENV} ||
+		oc_fail "${what}: expected ocserv-fw to run, it did not"
+}
+
+# expect_env WHAT EXPECTED: the OCSERV_*ROUTES* variables ocserv-fw received
+# are exactly EXPECTED, one per line, sorted, without main's trailing space
+expect_env() {
+	got=$(cat ${FW_ENV})
+	if test "${got}" != "$2"; then
+		oc_fail "$1: expected ocserv-fw to receive '$2', got '${got}'"
+	fi
+}
+
+NO_ROUTES='OCSERV_NO_ROUTES4=203.0.113.0/255.255.255.0
+OCSERV_NO_ROUTES=203.0.113.0/255.255.255.0'
+
+echo " * vhost: route = default"
+start_server "route = default"
+
+connect "(a) group route = default" "route = default"
+expect_env "(a) group route = default" "${NO_ROUTES}"
+
+connect "(b) group route = 0.0.0.0/0" "route = 0.0.0.0/0"
+expect_env "(b) group route = 0.0.0.0/0" "${NO_ROUTES}"
+
+connect "(d) group split route" "route = 192.0.2.0/24"
+expect_env "(d) group split route" "${NO_ROUTES}
+OCSERV_ROUTES4=192.0.2.0/255.255.255.0
+OCSERV_ROUTES=192.0.2.0/255.255.255.0"
+stop_server
+
+echo " * vhost: no route"
+start_server
+connect "(c) no route anywhere"
+expect_env "(c) no route anywhere" "${NO_ROUTES}"
+stop_server
+
+echo " * vhost: split route"
+start_server "route = 198.51.100.0/24"
+connect "(e) group without route"
+expect_env "(e) group without route" "${NO_ROUTES}
+OCSERV_ROUTES4=198.51.100.0/255.255.255.0
+OCSERV_ROUTES=198.51.100.0/255.255.255.0"
+stop_server
+
+echo " * vhost: route = default, expose-iroutes"
+start_server "route = default" "expose-iroutes = true" \
+	"config-per-user = ${USER_DIR}/"
+connect "(f) group route = default with iroutes" "route = default"
+expect_env "(f) group route = default with iroutes" "${NO_ROUTES}"
+stop_server
+
+echo ok
+exit 0

@@ -10,6 +10,9 @@ sources:
   - src/main-worker-cmd.c
   - src/main-sec-mod-cmd.c
   - src/main-proc.c
+  - src/main-user.c
+  - src/ocserv-fw-nftables
+  - src/ocserv-fw-iptables
   - src/ip-lease.c
   - src/route-add.c
   - src/ip-util.c
@@ -446,6 +449,55 @@ exactly the line `203.0.113.0/255.255.255.0 203.0.113.0/24 <device>`,
 where `<device>` is a `vpns<N>` (Linux) or `tun<N>` (BSD) device;
 negative — any other content fails the test.
 **Links:** REQ-MAIN-SEC-008
+
+### REQ-MAIN-NET-007 — The connect script receives no route allow-list for a full-tunnel session
+
+**Requirement:** Before it runs the connect, host-update or disconnect
+script of a session — or `ocserv-fw` in its place, when
+`restrict-user-to-routes` or `restrict-user-to-ports` applies — main MUST
+export the session's `route` values as `OCSERV_ROUTES`, with the IPv4 and
+IPv6 values also in `OCSERV_ROUTES4` and `OCSERV_ROUTES6`, and its
+`no-route` values likewise as `OCSERV_NO_ROUTES`, `OCSERV_NO_ROUTES4` and
+`OCSERV_NO_ROUTES6`, each a space-separated list; a variable whose list is
+empty MUST NOT be set. A full-tunnel session has an empty `route` list
+(REQ-CONFIG-CFG-013), so main sets no `OCSERV_ROUTES`, `OCSERV_ROUTES4` or
+`OCSERV_ROUTES6` for it, and still exports its `no-route` values. The
+`ocserv-fw` scripts treat an unset `OCSERV_ROUTES` as the default route, so
+with `restrict-user-to-routes` such a user is prevented only from reaching
+its `no-route` networks, as `doc/sample.config` documents ("In case of
+defaultroute, the no-routes are restricted"), whether the default route was
+requested by the vhost, by the user's or group's file, or by RADIUS.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/main-user.c (`export_fw_info`, `call_script`);
+src/main-sec-mod-cmd.c (`apply_default_config`); src/ocserv-fw-nftables,
+src/ocserv-fw-iptables
+(`OCSERV_ROUTES`); doc/sample.config `restrict-user-to-routes`
+**Acceptance:** CI (TUN) — `tests/test-fw-env-routes`, with a recorder in
+place of `ocserv-fw` (`OCSERV_FW_SCRIPT`) that keeps the `OCSERV_*ROUTES*`
+variables, and `config-per-group` files:
+(a) a group file with `route = default` and `restrict-user-to-routes = true`
+connects, and the script sees no `OCSERV_ROUTES*` and sees the vhost's
+`no-route` in `OCSERV_NO_ROUTES4`; (b) the same with `route = 0.0.0.0/0`;
+(c) with no `route` in the vhost or the group file, the script sees no
+`OCSERV_ROUTES*`; (d) negative: a group file with `route = 192.0.2.0/24`
+gives `OCSERV_ROUTES4` = `192.0.2.0/255.255.255.0 `; (e) negative: a group
+file without `route`, under a vhost with `route = 198.51.100.0/24`, gives
+`OCSERV_ROUTES4` = `198.51.100.0/255.255.255.0 `; (f) with
+`expose-iroutes` and another user's `iroute`, a group file with
+`route = default` still gives no `OCSERV_ROUTES*`. CI (root, nft) —
+`tests/fw-ocserv-group-default`: (g) with the vhost and the group file of
+issue #791 (`route = default` in both, `no-route` in the vhost,
+`restrict-user-to-routes = true` in the group file) and `ocserv-fw-nftables`,
+the user connects, reaches an address outside the `no-route` network, and
+cannot reach one inside it.
+**Note:** before this requirement, a `route = default` set in a user's or
+group's file, or by RADIUS, was exported as `OCSERV_ROUTES4="default "`;
+with `restrict-user-to-routes` the `ocserv-fw` scripts tried to resolve
+`default` as a host name, failed, and the login was refused (issue #791).
+Custom connect scripts no longer see `default` in `OCSERV_ROUTES`, nor
+routes listed with it.
+**Links:** REQ-CONFIG-CFG-012, REQ-CONFIG-CFG-013
 
 ---
 

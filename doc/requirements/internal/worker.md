@@ -608,8 +608,9 @@ VPN session's connection has no `tls` ULP and the tunnel carries traffic.
 
 **Requirement:** In its CONNECT response the worker MUST send
 `X-CSTP-Tunnel-All-DNS: true` when the session is a full tunnel — its
-`route` values are empty, or include a value that requests the default
-route (REQ-CONFIG-CFG-013) — whatever the value of `tunnel-all-dns`. For
+`route` list is empty, which is also how main hands over a `route` that
+requests the default route (REQ-CONFIG-CFG-013) — whatever the value of
+`tunnel-all-dns`. For
 any other session it MUST send `X-CSTP-Tunnel-All-DNS` with the session's
 `tunnel-all-dns` value: the user's or group's if its file sets it, the
 vhost's otherwise, `false` if neither sets it. The header tells AnyConnect
@@ -620,9 +621,7 @@ traffic through the VPN, and the header keeps DNS queries out of its
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/worker-vpn.c (`connect_handler`, "X-CSTP-Tunnel-All-DNS");
-src/worker-auth.c (`recv_cookie_auth_reply`, `ws->default_route`);
-src/ip-util.c (`ip_routes_have_default`); doc/sample.config
-`tunnel-all-dns`
+doc/sample.config `tunnel-all-dns`
 **Acceptance:** CI (TUN) — `tests/test-route-default`, reading the CONNECT
 reply with `oc-client.py connect`: (a) a vhost with `route = default` and without
 `tunnel-all-dns` sends `true`; (b) a vhost with no `route` sends `true`;

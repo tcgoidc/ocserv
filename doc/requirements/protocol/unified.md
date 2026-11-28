@@ -176,11 +176,13 @@ route through the VPN."
 conditionally present
 **Source mapping**: OC-PROTO-CONN-007; AC-CLIENT-CONN-002 (DNS header name
 choice depends on `user_agent_type`, see REQ-PROTO-CFG-002); OCSERV
-`src/worker-vpn.c` (`send_routes`, `ws->default_route`, `ws->user_config->tunnel_all_dns`);
+`src/worker-vpn.c` (`send_routes`, `ws->user_config->tunnel_all_dns`);
 which routes request the default route: REQ-CONFIG-CFG-013; a full-tunnel
 session sends `X-CSTP-Tunnel-All-DNS: true` (REQ-WORKER-NET-008).
-**Acceptance**: with no routes configured and `default_route` true, no
-`X-CSTP-Split-Include*` header is sent and the client tunnels all traffic.
+**Acceptance**: with no routes configured, or a route requesting the
+default route (REQ-CONFIG-CFG-013), no
+`X-CSTP-Split-Include*` header is sent, apart from the iOS `2000::/3` of
+REQ-PROTO-CFG-003, and the client tunnels all traffic.
 **Divergence**: the *choice of DNS header name* (`X-CSTP-DNS` vs
 `X-CSTP-DNS-IP6`) for IPv6 entries is AnyConnect-vs-OpenConnect divergent — see
 REQ-PROTO-CFG-002 for the dedicated entry. Of the SHOULD-strength conventions
@@ -779,11 +781,12 @@ its actual capabilities).
 ### REQ-PROTO-CFG-003
 **Requirement**: When IPv6 is enabled and the client is identified as iOS
 AnyConnect (`req->is_ios`, set only for `User-Agent` starting with
-`"Cisco AnyConnect VPN Agent for Apple"`), and the session has no configured
-routes or `default_route == 0`, the server MUST additionally send
-`X-CSTP-Split-Include-IP6: 2000::/3`.
+`"Cisco AnyConnect VPN Agent for Apple"`), the server MUST additionally send
+`X-CSTP-Split-Include-IP6: 2000::/3`, whether the session is a full or a
+split tunnel. Before REQ-CONFIG-CFG-013, a full tunnel requested in a user's
+or group's file did not receive it, unlike one requested by the vhost.
 **Class**: EXTENSION
-**Strength**: MUST (when the iOS-AnyConnect + no-default-route condition holds)
+**Strength**: MUST (when the iOS-AnyConnect + IPv6 condition holds)
 **Source mapping**: AC-CLIENT-CONN-004; no corresponding OC-PROTO requirement
 (iOS-specific platform workaround).
 **Acceptance**: see AC-CLIENT-CONN-004.

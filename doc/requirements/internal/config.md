@@ -641,11 +641,16 @@ full tunnel, which already reaches these networks: it MUST NOT receive the
 known iroutes, which would make it a split tunnel limited to them. The vhost
 has no routes when it sets no `route` at all, or a `route` that requests the
 default route (REQ-CONFIG-CFG-013), which `check_cfg()` turns into an empty
-list; the two are equivalent.
+list; the two are equivalent. Once combined, a session's `route` values that
+include one requesting the default route MUST be emptied, so that the
+session is a full tunnel like one without routes: the other values, the
+vhost routes appended by `append-routes` and the known iroutes are dropped.
+An empty user `route` list cannot be used for that before combining, as it
+means that the session receives the vhost routes.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/main-sec-mod-cmd.c (`apply_default_config`,
-`append_routes`); src/config.c (`cfg_ini_handler` "append-routes",
+`append_routes`); src/ip-util.c (`ip_routes_have_default`); src/config.c (`cfg_ini_handler` "append-routes",
 `load_iroutes`, `check_cfg`); doc/sample.config `append-routes`,
 `expose-iroutes`
 **Acceptance:** tests/test-append-routes (CI, root), with `expose-iroutes`
@@ -660,7 +665,9 @@ route, then the vhost `route`, then the iroute, each once, and its own
 iroute, and not the vhost `route`, and only its own `no-route`; (d)
 negative: with `append-routes = false` and the vhost `route` replaced by
 `route = default`, `testuser` MUST receive no `route` (a full tunnel, not
-the iroute) and the vhost `no-route` exactly once.
+the iroute) and the vhost `no-route` exactly once. (e) CI (TUN):
+REQ-MAIN-NET-007 (f) checks that a group's `route = default` drops the
+known iroutes.
 **Note:** before this requirement, with `append-routes = true` a session
 without user routes for `route` received each vhost route twice, as main gave
 it the vhost routes as its own and then appended them, and the known iroutes
@@ -680,23 +687,25 @@ vhost, in a `config-per-user` or `config-per-group` file, or by RADIUS
 (REQ-CONFIG-CFG-006). It MUST be recognized after `ip_route_sanity_check()`
 has validated the value, which rewrites `0.0.0.0/0` as `0.0.0.0/0.0.0.0`
 (REQ-MAIN-SEC-008). The decision MUST be made by one function,
-`ip_route_is_default()`, shared by every process that makes it, so that
-config parsing and the CONNECT response agree:
+`ip_route_is_default()`, and MUST turn the request into an empty `route`
+list, so that an empty list is the only form of a full tunnel that the
+rest of ocserv sees:
   - in a vhost, `check_cfg()` MUST empty the vhost's `route` list, which
     REQ-CONFIG-CFG-012 then treats as having no routes;
-  - for a session whose `route` values include such a value, the worker
-    MUST NOT send any `X-CSTP-Split-Include` header for its routes
-    (REQ-PROTO-CONN-007; the `2000::/3` sent to iOS clients by
-    REQ-PROTO-CFG-003 is not one of them) and MUST send
-    `X-CSTP-Tunnel-All-DNS: true` (REQ-WORKER-NET-008). The other `route`
-    values of that session are not sent.
+  - for a session, main MUST empty the session's `route` list once it has
+    combined the user and vhost routes (REQ-CONFIG-CFG-012).
+A session with an empty `route` list gets no route allow-list in the
+connect script environment (REQ-MAIN-NET-007), no `X-CSTP-Split-Include`
+header for its routes (REQ-PROTO-CONN-007; the `2000::/3` sent to iOS
+clients by REQ-PROTO-CFG-003 is not one of them), and
+`X-CSTP-Tunnel-All-DNS: true` (REQ-WORKER-NET-008).
 The rule applies to `route` only: in `no-route` and `iroute`, `0.0.0.0/0`
 keeps its meaning as an address range.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/ip-util.c (`ip_route_is_default`,
 `ip_routes_have_default`, `ip_route_sanity_check`); src/config.c
-(`check_cfg`); src/worker-auth.c (`recv_cookie_auth_reply`);
+(`check_cfg`); src/main-sec-mod-cmd.c (`apply_default_config`);
 doc/sample.config `route`
 **Acceptance:** unit, local — `tests/route-sanity-check.c`:
 `ip_routes_have_default()` MUST return true for a list holding `default`,
@@ -717,7 +726,7 @@ requirement, and a configuration relying on it now tunnels all traffic.
 because, after validation, it cannot be told apart from `0.0.0.0/0` and
 covers the same addresses. `::/0` is not recognized.
 **Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-012, REQ-MAIN-SEC-008,
-REQ-WORKER-NET-008, REQ-PROTO-CONN-007
+REQ-MAIN-NET-007, REQ-WORKER-NET-008, REQ-PROTO-CONN-007
 
 ---
 

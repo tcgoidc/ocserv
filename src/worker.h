@@ -364,7 +364,6 @@ typedef struct worker_st {
 
 	/* information on the tun device addresses and network */
 	struct vpn_st vinfo;
-	unsigned int default_route;
 
 	void *main_pool; /* to be used only on deinitialization */
 

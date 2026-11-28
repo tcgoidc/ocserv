@@ -317,7 +317,8 @@ endif
 
 # tun tests (require /dev/net/tun)
 if get_option('tun-tests')
-  foreach s : ['no-route-default', 'no-route-group', 'test-route-default']
+  foreach s : ['no-route-default', 'no-route-group', 'test-route-default',
+               'test-fw-env-routes']
     test(s, find_program(s),
       env:     test_env,
       timeout: 180,
@@ -345,7 +346,8 @@ if get_option('root-tests')
     test_env.set('MPTCP_SHIM', mptcp_shim.full_path())
   endif
 
-  foreach s : ['test-fw-script', 'fw-ocserv', 'fw-ocserv-ports-routes']
+  foreach s : ['test-fw-script', 'fw-ocserv', 'fw-ocserv-ports-routes',
+               'fw-ocserv-group-default']
     test(s, find_program(s),
       env:     test_env,
       timeout: 300,

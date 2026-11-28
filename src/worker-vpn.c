@@ -2487,22 +2487,20 @@ static int connect_handler(worker_st *ws)
 	}
 
 	/* Anyconnect on IOS requires this route in order to use IPv6 */
-	if (ws->full_ipv6 && req->is_ios &&
-	    (ws->user_config->n_routes == 0 || ws->default_route == 0)) {
+	if (ws->full_ipv6 && req->is_ios) {
 		oclog(ws, LOG_INFO, "adding special split DNS for Apple");
 		ret = cstp_printf(ws, "X-CSTP-Split-Include-IP6: 2000::/3\r\n");
 		SEND_ERR(ret);
 	}
 
-	if (ws->default_route == 0) {
-		ret = send_routes(ws, req, ws->user_config->routes,
-				  ws->user_config->n_routes, 1);
-		SEND_ERR(ret);
+	ret = send_routes(ws, req, ws->user_config->routes,
+			  ws->user_config->n_routes, 1);
+	SEND_ERR(ret);
 
-	} else {
-		/* default route */
+	/* a full tunnel sends all DNS queries through the VPN anyway, and
+	 * keeps them out of its excluded routes this way */
+	if (ws->user_config->n_routes == 0)
 		ws->user_config->tunnel_all_dns = 1;
-	}
 
 	if (ws->user_config->tunnel_all_dns) {
 		ret = cstp_puts(ws, "X-CSTP-Tunnel-All-DNS: true\r\n");

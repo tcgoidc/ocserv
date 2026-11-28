@@ -49,6 +49,7 @@
 #include "vpn.h"
 #include "main.h"
 #include "main-ban.h"
+#include "ip-util.h"
 #include "ccan/list/list.h"
 
 #ifdef HAVE_MALLOC_TRIM
@@ -352,6 +353,12 @@ static void apply_default_config(sec_mod_instance_st *sec_mod_instance,
 		gc->routes = vhost->config->network->routes;
 		gc->n_routes = vhost->config->network->n_routes;
 	}
+
+	/* a session that requests the default route gets no routes, like a
+	 * vhost that requests it; not earlier, as append_routes() gives a
+	 * user without routes the vhost's */
+	if (ip_routes_have_default(gc->routes, gc->n_routes))
+		gc->n_routes = 0;
 
 	if (gc->no_routes == NULL) {
 		gc->no_routes = vhost->config->network->no_routes;

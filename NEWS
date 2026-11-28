@@ -7,6 +7,13 @@
   top-level configuration or a virtual host sent the tunnel-all-dns value
   (by default false) before; tunnel-all-dns now only applies to split
   tunnels.
+- A route = default set in a user's or group's configuration file, or by
+  RADIUS, no longer prevents logins with restrict-user-to-routes: the
+  firewall script was given 'default' as a route and failed (#791). Such
+  a session has no routes, as a full tunnel set in the top-level
+  configuration: occtl and the connect script no longer show 'default' or
+  the routes listed with it, and iOS clients receive the IPv6 route they
+  need, as they did for the top-level full tunnel.
 - Fixed occasional 80-90% ocserv-worker CPU usage (#767)
 - The worker reads up to 8 records per wakeup from the TLS connection and
   from DTLS, as it already did for packets from the TUN device. Under load,

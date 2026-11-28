@@ -42,7 +42,6 @@
 #include "worker-tun.h"
 #include "common/common.h"
 #include "tlslib.h"
-#include "ip-util.h"
 
 #include <llhttp.h>
 
@@ -1057,12 +1056,6 @@ static int recv_cookie_auth_reply(worker_st *ws)
 
 			if (msg->config->has_no_udp)
 				WSRCONFIG(ws)->no_udp = msg->config->no_udp;
-
-			/* routes */
-			if (msg->config->n_routes == 0 ||
-			    ip_routes_have_default(msg->config->routes,
-						   msg->config->n_routes))
-				ws->default_route = 1;
 		} else {
 			oclog(ws, LOG_ERR, "error in received message");
 			ret = ERR_AUTH_FAIL;
