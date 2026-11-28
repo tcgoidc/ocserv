@@ -90,6 +90,29 @@ static void expect_default(unsigned int expected, unsigned int n, ...)
 	}
 }
 
+/* REQ-CONFIG-CFG-013: a route is recognized after ip_route_sanity_check()
+ * has rewritten it, as config.c and the per-user files do */
+static void expect_default_after_check(unsigned int expected, const char *route)
+{
+	void *pool = talloc_new(NULL);
+	char *r = talloc_strdup(pool, route);
+	unsigned int ret;
+
+	if (ip_route_sanity_check(pool, &r) < 0) {
+		fprintf(stderr, "error: route '%s' was rejected\n", route);
+		exit(1);
+	}
+	ret = ip_routes_have_default(&r, 1);
+	if (ret != expected) {
+		fprintf(stderr,
+			"error: route '%s', validated as '%s', is %sa default route, expected %s\n",
+			route, r, ret ? "" : "not ",
+			expected ? "a default route" : "not a default route");
+		exit(1);
+	}
+	talloc_free(pool);
+}
+
 int main(void)
 {
 	/* --- malicious routes: MUST be rejected regardless of family --- */
@@ -138,6 +161,12 @@ int main(void)
 	expect_default(0, 1, "10.0.0.0/8");
 	expect_default(0, 1, "::/0");
 	expect_default(0, 2, "192.0.2.0/255.255.255.0", "2001:db8::/32");
+
+	expect_default_after_check(1, "default");
+	expect_default_after_check(1, "0.0.0.0/0");
+	expect_default_after_check(1, "0.0.0.0/0.0.0.0");
+	expect_default_after_check(0, "0.0.0.0/1");
+	expect_default_after_check(0, "::/0");
 
 	printf("All route sanity check tests passed.\n");
 	return 0;

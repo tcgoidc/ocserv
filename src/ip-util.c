@@ -259,8 +259,10 @@ int ip_route_sanity_check(void *pool, char **_route)
 
 unsigned int ip_route_is_default(const char *route)
 {
+	/* ip_route_sanity_check() rewrites 0.0.0.0/0 as 0.0.0.0/0.0.0.0 */
 	return (strcmp(route, "default") == 0 ||
-		strcmp(route, "0.0.0.0/0") == 0);
+		strcmp(route, "0.0.0.0/0") == 0 ||
+		strcmp(route, "0.0.0.0/0.0.0.0") == 0);
 }
 
 unsigned int ip_routes_have_default(char *const *routes, unsigned int n_routes)

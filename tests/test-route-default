@@ -1,0 +1,107 @@
+#!/bin/bash
+#
+# Copyright (C) 2026 Nikos Mavrogiannopoulos
+#
+# This file is part of ocserv.
+#
+# ocserv is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at
+# your option) any later version.
+#
+# ocserv is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# REQ-CONFIG-CFG-013: a route of default or 0.0.0.0/0, set in the vhost
+# or in a user's file, makes the session a full tunnel. Reads the CONNECT
+# reply with oc-client.py.
+
+SERV="${SERV:-../src/ocserv}"
+srcdir=${srcdir:-.}
+
+. `dirname $0`/common.sh
+. `dirname $0`/random-vpnnet.sh
+
+require_oc_client
+
+eval "${GETPORT}"
+
+echo "Testing the routes that request the default route... "
+
+function finish {
+  set +e
+  echo " * Cleaning up..."
+  cleanup
+  rm -f ${BASE_CONFIG} ${SERVER_LOG}
+  test -n "${CONFIG_PER_USER_DIR}" && rm -rf ${CONFIG_PER_USER_DIR}
+}
+trap finish EXIT
+
+SERVER_LOG=$(mktemp)
+
+update_config_dir route-default-user
+update_config test-route-default.config
+BASE_CONFIG=${CONFIG}.base
+cp ${CONFIG} ${BASE_CONFIG}
+
+# start_server ROUTE...: starts the server with these vhost routes
+start_server() {
+	cp ${BASE_CONFIG} ${CONFIG}
+	for r in "$@"; do
+		echo "route = $r" >>${CONFIG}
+	done
+	# VERBOSE keeps the server's log, which oc_fail prints
+	VERBOSE=1 launch_simple_server -d 1 -f -c ${CONFIG} >${SERVER_LOG} 2>&1
+	PID=$!
+	wait_server $PID
+}
+
+stop_server() {
+	kill $PID
+	wait $PID 2>/dev/null
+}
+
+# user_config LINE...: the per-user file of test for the next connection
+user_config() {
+	printf '%s\n' "$@" >${CONFIG_PER_USER_DIR}/test
+}
+
+# connect WHAT: logs in as test and opens the tunnel
+connect() {
+	oc_run connect --user test --password test ||
+		oc_fail "$1: the tunnel was not opened"
+}
+
+echo " * vhost: route = 0.0.0.0/0 after a split route"
+start_server 192.0.2.0/24 0.0.0.0/0
+user_config
+connect "vhost 0.0.0.0/0"
+oc_expect_not "X-CSTP-Split-Include:" "vhost route = 0.0.0.0/0 is a full tunnel"
+stop_server
+
+echo " * vhost: split route"
+start_server 192.0.2.0/24
+user_config
+connect "vhost split route"
+oc_expect "X-CSTP-Split-Include: 192\.0\.2\.0/255\.255\.255\.0" \
+	"the vhost's split route is sent"
+
+echo " * user: route = 0.0.0.0/0"
+user_config "route = 0.0.0.0/0"
+connect "user 0.0.0.0/0"
+oc_expect_not "X-CSTP-Split-Include:" "user route = 0.0.0.0/0 is a full tunnel"
+
+echo " * user: route = 0.0.0.0/1"
+user_config "route = 0.0.0.0/1"
+connect "user 0.0.0.0/1"
+oc_expect "X-CSTP-Split-Include: 0\.0\.0\.0/128\.0\.0\.0" \
+	"user route = 0.0.0.0/1 is a split route"
+stop_server
+
+echo ok
+exit 0

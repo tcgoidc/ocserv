@@ -639,9 +639,9 @@ affected. The resulting `route` order is: user routes, vhost routes,
 known iroutes. A session whose `route` values are empty at that point is a
 full tunnel, which already reaches these networks: it MUST NOT receive the
 known iroutes, which would make it a split tunnel limited to them. The vhost
-has no routes when it sets `route = default` or `route = 0.0.0.0/0`, which
-`check_cfg()` turns into an empty list, or no `route` at all; the three are
-equivalent.
+has no routes when it sets no `route` at all, or a `route` that requests the
+default route (REQ-CONFIG-CFG-013), which `check_cfg()` turns into an empty
+list; the two are equivalent.
 **Strength:** MUST
 **Status:** DERIVED
 **Source:** src/main-sec-mod-cmd.c (`apply_default_config`,
@@ -669,7 +669,54 @@ the known iroutes as its only routes. A session whose user routes are
 appended to a vhost with no routes receives only its user routes and the
 known iroutes: `append-routes` does not keep a full tunnel for users that
 have routes of their own.
-**Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-010
+**Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-010, REQ-CONFIG-CFG-013
+
+### REQ-CONFIG-CFG-013 — A `route` of `default`, `0.0.0.0/0` or `0.0.0.0/0.0.0.0` requests the default route, wherever it is set
+
+**Requirement:** A `route` value that is exactly `default`, `0.0.0.0/0` or
+`0.0.0.0/0.0.0.0` MUST be recognized as a request to route all of the
+client's traffic through the VPN (a *full tunnel*), whether it is set in a
+vhost, in a `config-per-user` or `config-per-group` file, or by RADIUS
+(REQ-CONFIG-CFG-006). It MUST be recognized after `ip_route_sanity_check()`
+has validated the value, which rewrites `0.0.0.0/0` as `0.0.0.0/0.0.0.0`
+(REQ-MAIN-SEC-008). The decision MUST be made by one function,
+`ip_route_is_default()`, shared by every process that makes it, so that
+config parsing and the CONNECT response agree:
+  - in a vhost, `check_cfg()` MUST empty the vhost's `route` list, which
+    REQ-CONFIG-CFG-012 then treats as having no routes;
+  - for a session whose `route` values include such a value, the worker
+    MUST NOT send any `X-CSTP-Split-Include` header for its routes
+    (REQ-PROTO-CONN-007; the `2000::/3` sent to iOS clients by
+    REQ-PROTO-CFG-003 is not one of them). The other `route` values of
+    that session are not sent.
+The rule applies to `route` only: in `no-route` and `iroute`, `0.0.0.0/0`
+keeps its meaning as an address range.
+**Strength:** MUST
+**Status:** DERIVED
+**Source:** src/ip-util.c (`ip_route_is_default`,
+`ip_routes_have_default`, `ip_route_sanity_check`); src/config.c
+(`check_cfg`); src/worker-auth.c (`recv_cookie_auth_reply`);
+doc/sample.config `route`
+**Acceptance:** unit, local — `tests/route-sanity-check.c`:
+`ip_routes_have_default()` MUST return true for a list holding `default`,
+for `0.0.0.0/0` after `ip_route_sanity_check()`, and for `0.0.0.0/0.0.0.0`,
+also when other routes come before it; negative: false for an empty list,
+`0.0.0.0/1`, `10.0.0.0/8` and `::/0`. CI (TUN) — `tests/test-route-default`,
+reading the CONNECT reply with `oc-client.py connect`: (a) a vhost with
+`route = 0.0.0.0/0` and another `route` sends no `X-CSTP-Split-Include`;
+(b) a user file with `route = 0.0.0.0/0` sends no `X-CSTP-Split-Include`
+although the vhost has routes; (c) negative: a user file with
+`route = 0.0.0.0/1` sends `X-CSTP-Split-Include: 0.0.0.0/128.0.0.0`.
+**Note:** 1.5.x rejected `route = 0.0.0.0/0` at startup. Since 1.6.0, where
+`ip_route_sanity_check()` started rewriting `0.0.0.0/0` before the
+comparison with `0.0.0.0/0`, it was accepted as an IPv4 split route
+`0.0.0.0/0.0.0.0`, which did not tunnel IPv6; that was a regression of this
+requirement, and a configuration relying on it now tunnels all traffic.
+`0.0.0.0/0.0.0.0` was always an IPv4 split route; it is a default route now
+because, after validation, it cannot be told apart from `0.0.0.0/0` and
+covers the same addresses. `::/0` is not recognized.
+**Links:** REQ-CONFIG-CFG-006, REQ-CONFIG-CFG-012, REQ-MAIN-SEC-008,
+REQ-PROTO-CONN-007
 
 ---
 

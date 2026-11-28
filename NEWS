@@ -1,4 +1,7 @@
 * Version 1.6.1 (unreleased)
+- A route of 0.0.0.0/0, as well as 0.0.0.0/0.0.0.0, requests the default
+  route again, like 'default'. Since 1.6.0 it was sent as an IPv4 route,
+  which left IPv6 traffic out of the tunnel.
 - Fixed occasional 80-90% ocserv-worker CPU usage (#767)
 - The worker reads up to 8 records per wakeup from the TLS connection and
   from DTLS, as it already did for packets from the TUN device. Under load,

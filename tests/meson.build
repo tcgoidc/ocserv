@@ -317,7 +317,7 @@ endif
 
 # tun tests (require /dev/net/tun)
 if get_option('tun-tests')
-  foreach s : ['no-route-default', 'no-route-group']
+  foreach s : ['no-route-default', 'no-route-group', 'test-route-default']
     test(s, find_program(s),
       env:     test_env,
       timeout: 180,
