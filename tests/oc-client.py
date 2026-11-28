@@ -81,6 +81,10 @@ class ProtocolError(Exception):
     """The server answered in a way the command does not expect."""
 
 
+class ConnectRefused(ProtocolError):
+    """The server answered the CONNECT with an error status."""
+
+
 # ---------------------------------------------------------------------------
 # Transport: one TLS connection to a virtual host
 # ---------------------------------------------------------------------------
@@ -330,7 +334,8 @@ class Tunnel:
         lines = head.decode("latin-1").split("\r\n")
         server.trace("<", lines[0], "\n".join(lines[1:]))
         if not lines[0].startswith("HTTP/1.1 200"):
-            raise ProtocolError("CONNECT refused: %s" % lines[0])
+            raise ConnectRefused("CONNECT refused: %s" % lines[0])
+        self.headers = lines[1:]
         self.address = None
         for line in lines[1:]:
             name, _, value = line.partition(":")
@@ -509,6 +514,30 @@ def cmd_login(server, args):
         return OK
     raise ProtocolError("expected a session cookie or a rejection, got "
                         "HTTP %d:\n%s" % (reply.status, reply.body))
+
+
+@command("connect",
+         arg("--group", help="group to propose, sent as given even if the "
+             "form does not offer it"),
+         arg("--user", required=True),
+         arg("--password", required=True))
+def cmd_connect(server, args):
+    """Log in, open the tunnel and print the headers of the CONNECT reply.
+
+    One 'Name: value' line per header, as the server sent them, after
+    the lines of the login command. Succeeds if the server opens the
+    tunnel, refuses if it rejects the login or the CONNECT."""
+    result = cmd_login(server, args)
+    if result != OK:
+        return result
+    try:
+        tun = Tunnel(server, server.cookies["webvpn"])
+    except ConnectRefused as e:
+        server.report(str(e))
+        return REFUSED
+    for line in tun.headers:
+        server.report(line)
+    return OK
 
 
 # A captured, generic GSSAPI/SPNEGO NTLMSSP Type1 (negotiate) token. Type1
